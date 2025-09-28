@@ -8,18 +8,8 @@ class AgentDashboard {
     public function __construct() {
         add_shortcode('agent_dashboard', array($this, 'dashboard_shortcode'));
         add_action('wp_ajax_submit_customer_form', array($this, 'handle_customer_submission'));
+        add_action('wp_ajax_get_customer_list', array($this, 'handle_get_customer_list'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-    }
-
-    public function enqueue_scripts() {
-        wp_enqueue_script('jquery');
-        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.0', true);
-        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css');
-
-        wp_localize_script('agent-scripts', 'agent_dashboard_ajax', array(
-                'ajaxurl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('agent_auth_nonce')
-        ));
     }
 
     public function dashboard_shortcode() {
@@ -206,6 +196,28 @@ class AgentDashboard {
         ));
 
         wp_send_json_success('Customer information submitted successfully');
+    }
+
+    // Add this new method
+    public function handle_get_customer_list() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        wp_send_json_success($this->get_customer_list());
+    }
+
+    public function enqueue_scripts() {
+        wp_enqueue_script('jquery');
+        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.0', true);
+        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css');
+
+        wp_localize_script('agent-scripts', 'agent_dashboard_ajax', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('agent_auth_nonce')
+        ));
     }
 }
 ?>

@@ -74,4 +74,101 @@ jQuery(document).ready(function($) {
             $('#signupMessage').html('<div class="error">Registration failed. Please try again.</div>');
         });
     });
+
+
+
+
+    // Tab functionality
+    $('.tab-button').click(function() {
+        $('.tab-button').removeClass('active');
+        $('.tab-content').removeClass('active');
+
+        $(this).addClass('active');
+        $('#' + $(this).data('tab')).addClass('active');
+    });
+
+    // Customer form handling with enhanced UX
+    $('#customerForm').on('submit', function(e) {
+        e.preventDefault();
+
+        // Show loading state
+        const submitBtn = $(this).find('button[type="submit"]');
+        const originalText = submitBtn.text();
+        submitBtn.html('<span style="display: flex; gap: 3px;"><span class="loading"></span><span>Submitting...</span></span>').prop('disabled', true);
+
+        // Create FormData for file upload
+        var formData = new FormData(this);
+        formData.append('action', 'submit_customer_form');
+        formData.append('nonce', agent_dashboard_ajax.nonce);
+
+        // Send AJAX request
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    $('#formMessage').html('<div class="success">' + response.data + '</div>');
+                    $('#customerForm')[0].reset();
+
+                    // Refresh customer list
+                    refreshCustomerList();
+                } else {
+                    $('#formMessage').html('<div class="error">' + response.data + '</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#formMessage').html('<div class="error">Submission failed. Please try again.</div>');
+            },
+            complete: function() {
+                // Restore button state
+                submitBtn.text(originalText).prop('disabled', false);
+            }
+        });
+    });
+
+    // Function to refresh customer list
+    function refreshCustomerList() {
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_customer_list',
+                nonce: agent_dashboard_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('.customer-table tbody').html(response.data);
+                }
+            }
+        });
+    }
+
+    // Add some interactive effects
+    $('.form-group input, .form-group select, .form-group textarea').on('focus', function() {
+        $(this).parent().addClass('focused');
+    }).on('blur', function() {
+        $(this).parent().removeClass('focused');
+    });
+
+    // Auto-hide messages after 5 seconds
+    $(document).on('click', '#formMessage .success, #formMessage .error', function() {
+        $(this).fadeOut(300);
+    });
+
+    setTimeout(function() {
+        $('#formMessage .success, #formMessage .error').fadeOut(300);
+    }, 5000);
+
+    // Add animation to table rows
+    $('.customer-table tbody tr').hover(
+        function() {
+            $(this).css('transform', 'scale(1.02)');
+        },
+        function() {
+            $(this).css('transform', 'scale(1)');
+        }
+    );
 });
