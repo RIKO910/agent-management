@@ -1,13 +1,9 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
-}
+
 class AgentAuth {
 
     public function __construct() {
         add_shortcode('agent_login', array($this, 'login_shortcode'));
-        add_shortcode('agent_signup', array($this, 'signup_shortcode'));
         add_action('wp_ajax_agent_login', array($this, 'handle_login'));
         add_action('wp_ajax_nopriv_agent_login', array($this, 'handle_login'));
         add_action('wp_ajax_agent_signup', array($this, 'handle_signup'));
@@ -15,7 +11,7 @@ class AgentAuth {
     }
 
     public function login_shortcode() {
-        if (is_user_logged_in() && current_user_can('agent')) {
+        if (is_user_logged_in() && $this->is_agent()) {
             return do_shortcode('[agent_dashboard]');
         }
 
@@ -24,22 +20,25 @@ class AgentAuth {
         <div class="agent-login-form">
             <h3>Agent Login</h3>
             <form id="agentLoginForm">
+                <?php wp_nonce_field('agent_auth_nonce', 'login_nonce'); ?>
                 <div class="form-group">
                     <label>Username/Email</label>
-                    <input type="text" name="username" required>
+                    <input type="text" name="login_username" required>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" name="password" required>
+                    <input type="password" name="login_password" required>
                 </div>
                 <button type="submit">Login</button>
             </form>
             <div id="loginMessage"></div>
             <p>Don't have an account? <a href="#" onclick="showSignup()">Sign up here</a></p>
         </div>
+
         <div class="agent-signup-form" style="display:none">
             <h3>Agent Sign Up</h3>
             <form id="agentSignupForm">
+                <?php wp_nonce_field('agent_auth_nonce', 'signup_nonce'); ?>
                 <div class="form-group">
                     <label>Company Name</label>
                     <input type="text" name="sign_company_name" required>
@@ -92,16 +91,11 @@ class AgentAuth {
         return ob_get_clean();
     }
 
-    public function signup_shortcode() {
-        ob_start();
-        ?>
-
-        <?php
-        return ob_get_clean();
-    }
-
     public function handle_login() {
-        check_ajax_referer('agent_auth_nonce', 'nonce');
+        // Check nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'agent_auth_nonce')) {
+            wp_send_json_error('Security verification failed');
+        }
 
         $username = sanitize_text_field($_POST['username']);
         $password = $_POST['password'];
@@ -112,7 +106,8 @@ class AgentAuth {
             wp_send_json_error('Invalid credentials');
         }
 
-        if (!in_array('agent', $user->roles)) {
+        // Check if user has agent role or is admin
+        if (!$this->is_agent($user) && !user_can($user, 'administrator')) {
             wp_send_json_error('Access denied. Agent role required.');
         }
 
@@ -123,13 +118,21 @@ class AgentAuth {
     }
 
     public function handle_signup() {
-        check_ajax_referer('agent_auth_nonce', 'nonce');
+        // Check nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'agent_auth_nonce')) {
+            wp_send_json_error('Security verification failed');
+        }
+
+        // Validate passwords match
+        if ($_POST['password'] !== $_POST['confirm_password']) {
+            wp_send_json_error('Passwords do not match.');
+        }
 
         $userdata = array(
             'user_login' => sanitize_text_field($_POST['username']),
             'user_email' => sanitize_email($_POST['email']),
             'user_pass' => $_POST['password'],
-            'role' => 'agent'
+            'role' => 'agent' // This should now work with our created role
         );
 
         $user_id = wp_insert_user($userdata);
@@ -142,7 +145,7 @@ class AgentAuth {
         global $wpdb;
         $agents_table = $wpdb->prefix . 'agents';
 
-        $wpdb->insert($agents_table, array(
+        $result = $wpdb->insert($agents_table, array(
             'user_id' => $user_id,
             'company_name' => sanitize_text_field($_POST['company_name']),
             'phone' => sanitize_text_field($_POST['phone']),
@@ -150,6 +153,19 @@ class AgentAuth {
             'license_number' => sanitize_text_field($_POST['license_number'])
         ));
 
+        if ($result === false) {
+            wp_send_json_error('Failed to save agent information.');
+        }
+
         wp_send_json_success('Registration successful. Please wait for admin approval.');
     }
+
+    private function is_agent($user = null) {
+        if (!$user) {
+            $user = wp_get_current_user();
+        }
+
+        return in_array('agent', (array) $user->roles);
+    }
 }
+?>
