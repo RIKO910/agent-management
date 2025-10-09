@@ -3,6 +3,10 @@ jQuery(document).ready(function($) {
     $('#agentLoginForm').on('submit', function(e) {
         e.preventDefault();
 
+        const submitButton = $(this).find('button[type="submit"]');
+        submitButton.prop('disabled', true).html('Continue...');
+
+
         let formData = {
             action: 'agent_login',
             nonce: agent_dashboard_ajax.nonce,
@@ -20,15 +24,20 @@ jQuery(document).ready(function($) {
                 }, 1000);
             } else {
                 $('#loginMessage').html('<div class="error">' + response.data + '</div>');
+                submitButton.prop('disabled', false).html('Login');
             }
         }).fail(function() {
             $('#loginMessage').html('<div class="error">Login failed. Please try again.</div>');
+            submitButton.prop('disabled', false).html('Login');
         });
     });
 
     // Signup form handling
     $('#agent-create-submit').on('click', function(e) {
         e.preventDefault();
+
+        const submitButton = $(this);
+        submitButton.prop('disabled', true).html('Continue...');
 
         // Simple password check before request
         let password = $('input[name="sign_password"]').val();
@@ -66,12 +75,15 @@ jQuery(document).ready(function($) {
                 // Optionally switch back to login form
                 setTimeout(function() {
                     showLogin();
+                    submitButton.prop('disabled', false).html('Sign Up');
                 }, 2000);
             } else {
                 $('#signupMessage').html('<div class="error">' + response.data + '</div>');
+                submitButton.prop('disabled', false).html('Sign Up');
             }
         }).fail(function() {
             $('#signupMessage').html('<div class="error">Registration failed. Please try again.</div>');
+            submitButton.prop('disabled', false).html('Sign Up');
         });
     });
 

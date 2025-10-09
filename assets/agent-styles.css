@@ -134,7 +134,7 @@
     margin-bottom: 8px;
     font-weight: 600;
     color: #4a5568;
-    font-size: 0.95rem;
+    /*font-size: 0.95rem;*/
 }
 
 .form-group input,
@@ -198,7 +198,7 @@ button[type="submit"],
 #agent-create-submit {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 18px 40px;
+    padding: 9px 20px;
     border: none;
     border-radius: 12px;
     font-size: 1.1rem;
@@ -207,7 +207,7 @@ button[type="submit"],
     transition: all 0.3s ease;
     display: block;
     margin: 40px auto 0;
-    min-width: 200px;
+    min-width: 100px;
     box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
