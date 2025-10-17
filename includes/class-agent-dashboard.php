@@ -368,7 +368,6 @@ class AgentDashboard {
                             $wpdb->insert($customer_images_table, array(
                                 'customer_id' => $customer_id,
                                 'image_url' => wp_get_attachment_url($attachment_id),
-                                'attachment_id' => $attachment_id,
                                 'image_type' => 'additional',
                                 'created_at' => current_time('mysql')
                             ));
