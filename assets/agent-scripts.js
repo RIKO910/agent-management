@@ -99,31 +99,38 @@ jQuery(document).ready(function($) {
 
     // Add multiple image fields
     $('#add-image-btn').click(function() {
-        const imageCount = $('.additional-image-field').length + 1;
-        const newField = `
-            <div class="form-group additional-image-field">
-                <label>Additional Image ${imageCount}</label>
-                <input type="file" name="additional_images[]" accept="image/*">
-                <button type="button" class="remove-image-btn">Remove</button>
-            </div>
-        `;
-        $('.multiple-image-upload-section').append(newField);
+        $('.multiple-image-upload-section').append(
+            '<div class="additional-image-field form-group">' +
+            '<label>Additional Image</label>' +
+            '<input type="file" name="additional_images[]" accept="image/*">' +
+            '<button type="button" class="remove-image-btn">Remove</button>' +
+            '</div>'
+        );
     });
 
     // Remove image fields
     $(document).on('click', '.remove-image-btn', function() {
         $(this).closest('.additional-image-field').remove();
-        // Update labels
-        $('.additional-image-field').each(function(index) {
-            $(this).find('label').text(`Additional Image ${index + 1}`);
-        });
     });
 
-    // AJAX form submission
+    $(document).on('change', 'input[type="file"]', function() {
+        var file = this.files[0];
+        if (file) {
+            var maxSize = 5 * 1024 * 1024; // 5MB in bytes
+            if (file.size > maxSize) {
+                alert('File size must be less than 5MB');
+                $(this).val('');
+            }
+        }
+    });
+
     $('#customerForm').submit(function(e) {
         e.preventDefault();
 
         var formData = new FormData(this);
+
+        // Add the action parameter correctly
+        formData.append('action', 'submit_customer_form');
 
         $.ajax({
             url: agent_dashboard_ajax.ajaxurl,
@@ -136,11 +143,17 @@ jQuery(document).ready(function($) {
                     $('#formMessage').html('<div class="success">' + response.data + '</div>');
                     $('#customerForm')[0].reset();
                     $('.additional-image-field').remove();
+
+                    // Refresh customer list
+                    if (typeof loadCustomerList === 'function') {
+                        loadCustomerList();
+                    }
                 } else {
                     $('#formMessage').html('<div class="error">' + response.data + '</div>');
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', error);
                 $('#formMessage').html('<div class="error">An error occurred. Please try again.</div>');
             }
         });

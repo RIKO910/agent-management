@@ -17,6 +17,9 @@ class AgentDashboard {
             return '<p>Please login as an agent to access the dashboard.</p>';
         }
 
+        // Enqueue WooCommerce lightbox scripts
+
+
         ob_start();
         ?>
         <div class="agent-dashboard">
@@ -101,6 +104,7 @@ class AgentDashboard {
                             <th>Visa Country</th>
                             <th>Submission Date</th>
                             <th>Status</th>
+                            <th>Images</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -113,62 +117,154 @@ class AgentDashboard {
 
         <script>
             jQuery(document).ready(function($) {
+                // Tab functionality
                 $('.tab-button').click(function() {
                     $('.tab-button').removeClass('active');
                     $('.tab-content').removeClass('active');
 
                     $(this).addClass('active');
                     $('#' + $(this).data('tab')).addClass('active');
+
+                    // Refresh customer list when switching to that tab
+                    if ($(this).data('tab') === 'customer-list') {
+                        loadCustomerList();
+                    }
                 });
+
+                // Initialize lightbox
+                if (typeof $.prettyPhoto !== 'undefined') {
+                    $('a[rel^="prettyPhoto"]').prettyPhoto({
+                        social_tools: false,
+                        theme: 'pp_woocommerce',
+                        horizontal_padding: 20,
+                        opacity: 0.8,
+                        deeplinking: false
+                    });
+                }
             });
+
+            // Function to load customer list via AJAX
+            function loadCustomerList() {
+                jQuery.ajax({
+                    url: agent_dashboard_ajax.ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'get_customer_list'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            jQuery('.customer-table tbody').html(response.data);
+
+                            // Re-initialize lightbox for new content
+                            if (typeof jQuery.prettyPhoto !== 'undefined') {
+                                jQuery('a[rel^="prettyPhoto"]').prettyPhoto({
+                                    social_tools: false,
+                                    theme: 'pp_woocommerce',
+                                    horizontal_padding: 20,
+                                    opacity: 0.8,
+                                    deeplinking: false
+                                });
+                            }
+                        }
+                    }
+                });
+            }
         </script>
         <?php
         return ob_get_clean();
     }
 
-    private function get_customer_list() {
+    public function get_customer_list() {
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            return '<tr><td colspan="7">Access denied</td></tr>';
+        }
+
         global $wpdb;
         $current_user_id = get_current_user_id();
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
+        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
 
-        if (!$agent) return '<tr><td colspan="7">No agent data found</td></tr>';
+        if (!$agent) {
+            return '<tr><td colspan="7">Agent not found</td></tr>';
+        }
 
+        // Get customers
         $customers = $wpdb->get_results($wpdb->prepare(
-            "SELECT c.*, COUNT(ci.id) as additional_images_count 
-         FROM $customers_table c 
-         LEFT JOIN $customer_images_table ci ON c.id = ci.customer_id 
-         WHERE c.agent_id = %d 
-         GROUP BY c.id 
-         ORDER BY c.created_at DESC", $agent->id
+            "SELECT * FROM $customers_table WHERE agent_id = %d ORDER BY created_at DESC", $agent->id
         ));
 
         if (empty($customers)) {
             return '<tr><td colspan="7">No customers found</td></tr>';
         }
 
-        $html = '';
-        foreach ($customers as $customer) {
-            $additional_images_text = $customer->additional_images_count > 0 ?
-                " (+{$customer->additional_images_count} more)" : "";
+        $output = '';
 
-            $html .= '<tr>
+        foreach ($customers as $customer) {
+            // Get additional images for this customer
+            $additional_images = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $customer_images_table WHERE customer_id = %d", $customer->id
+            ));
+
+            $images_html = '';
+
+            if (!empty($additional_images) || $customer->passport_image) {
+                $images_html = '<div class="customer-images">';
+
+                // Add passport image
+                if ($customer->passport_image) {
+                    $images_html .= '<a href="' . esc_url($customer->passport_image) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Passport Image">';
+                    $images_html .= '<img src="' . esc_url($customer->passport_image) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
+                    $images_html .= '</a>';
+                }
+
+                // Add additional images
+                foreach ($additional_images as $image) {
+                    $images_html .= '<a href="' . esc_url($image->image_url) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Additional Image">';
+                    $images_html .= '<img src="' . esc_url($image->image_url) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
+                    $images_html .= '</a>';
+                }
+
+                $images_html .= '</div>';
+            } else {
+                $images_html = 'No images';
+            }
+
+            $output .= '<tr>
             <td>' . esc_html($customer->customer_name) . '</td>
             <td>' . esc_html($customer->customer_phone) . '</td>
             <td>' . esc_html($customer->passport_number) . '</td>
             <td>' . esc_html($customer->visa_country) . '</td>
             <td>' . esc_html($customer->submission_date) . '</td>
-            <td><span class="status-' . esc_attr($customer->status) . '">' . esc_html($customer->status) . '</span></td>
-            <td>Yes' . esc_html($additional_images_text) . '</td>
+            <td>Pending</td>
+            <td>' . $images_html . '</td>
         </tr>';
         }
 
-        return $html;
+        return $output;
+    }
+
+    private function debug_upload_info() {
+        error_log('=== UPLOAD DEBUG INFO ===');
+        error_log('Files: ' . print_r($_FILES, true));
+        error_log('Post: ' . print_r($_POST, true));
+
+        // Check upload directory
+        $upload_dir = wp_upload_dir();
+        error_log('Upload dir: ' . print_r($upload_dir, true));
+
+        // Check permissions
+        error_log('Upload dir writable: ' . (is_writable($upload_dir['path']) ? 'Yes' : 'No'));
+
+        // Check PHP upload settings
+        error_log('upload_max_filesize: ' . ini_get('upload_max_filesize'));
+        error_log('post_max_size: ' . ini_get('post_max_size'));
+        error_log('max_file_uploads: ' . ini_get('max_file_uploads'));
     }
 
     public function handle_customer_submission() {
@@ -177,6 +273,8 @@ class AgentDashboard {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             wp_send_json_error('Access denied');
         }
+
+        $this->debug_upload_info();
 
         global $wpdb;
         $current_user_id = get_current_user_id();
@@ -193,57 +291,153 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
+        // Validate required fields
+        $required_fields = array(
+            'customer_name',
+            'customer_phone',
+            'passport_number',
+            'visa_country',
+            'visa_type',
+            'submission_date'
+        );
+
+        foreach ($required_fields as $field) {
+            if (empty($_POST[$field])) {
+                wp_send_json_error('Please fill all required fields');
+            }
+        }
+
         // Handle main passport image upload
-        if (empty($_FILES['passport_image'])) {
+        if (empty($_FILES['passport_image']) || $_FILES['passport_image']['error'] !== UPLOAD_ERR_OK) {
             wp_send_json_error('Passport image is required');
         }
 
-        $passport_upload = wp_upload_bits($_FILES['passport_image']['name'], null, file_get_contents($_FILES['passport_image']['tmp_name']));
-        if ($passport_upload['error']) {
-            wp_send_json_error('Passport image upload failed');
+        // Upload passport image to WordPress media library
+        $passport_attachment_id = $this->upload_to_media_library($_FILES['passport_image']);
+        if (is_wp_error($passport_attachment_id) || !$passport_attachment_id) {
+            error_log('Passport upload error: ' . $passport_attachment_id->get_error_message());
+            wp_send_json_error('Passport image upload failed: ' . $passport_attachment_id->get_error_message());
         }
-        $passport_image = $passport_upload['url'];
+
+        $passport_image_url = wp_get_attachment_url($passport_attachment_id);
+
+        if (!$passport_image_url) {
+            wp_send_json_error('Failed to get passport image URL');
+        }
 
         // Insert customer data
-        $wpdb->insert($customers_table, array(
+        $customer_data = array(
             'agent_id' => $agent->id,
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'customer_phone' => sanitize_text_field($_POST['customer_phone']),
             'passport_number' => sanitize_text_field($_POST['passport_number']),
-            'passport_image' => $passport_image,
+            'passport_image' => $passport_image_url,
             'visa_country' => sanitize_text_field($_POST['visa_country']),
             'visa_type' => sanitize_text_field($_POST['visa_type']),
-            'submission_date' => sanitize_text_field($_POST['submission_date'])
-        ));
+            'submission_date' => sanitize_text_field($_POST['submission_date']),
+            'created_at' => current_time('mysql')
+        );
+
+        $result = $wpdb->insert($customers_table, $customer_data);
+
+        if ($result === false) {
+            wp_send_json_error('Failed to save customer information: ' . $wpdb->last_error);
+        }
 
         $customer_id = $wpdb->insert_id;
-
-        if (!$customer_id) {
-            wp_send_json_error('Failed to save customer information');
-        }
 
         // Handle additional images
         if (!empty($_FILES['additional_images'])) {
             $additional_images = $_FILES['additional_images'];
 
-            // Loop through each additional image
-            foreach ($additional_images['name'] as $key => $name) {
-                if ($additional_images['error'][$key] === UPLOAD_ERR_OK) {
-                    $file_upload = wp_upload_bits($name, null, file_get_contents($additional_images['tmp_name'][$key]));
+            // Check if it's multiple files
+            if (is_array($additional_images['name'])) {
+                foreach ($additional_images['name'] as $key => $name) {
+                    if ($additional_images['error'][$key] === UPLOAD_ERR_OK) {
+                        $file = array(
+                            'name' => $name,
+                            'type' => $additional_images['type'][$key],
+                            'tmp_name' => $additional_images['tmp_name'][$key],
+                            'error' => $additional_images['error'][$key],
+                            'size' => $additional_images['size'][$key]
+                        );
 
-                    if (!$file_upload['error']) {
-                        // Save additional image to database
-                        $wpdb->insert($customer_images_table, array(
-                            'customer_id' => $customer_id,
-                            'image_url' => $file_upload['url'],
-                            'image_type' => 'additional'
-                        ));
+                        $attachment_id = $this->upload_to_media_library($file);
+
+                        if (!is_wp_error($attachment_id) && $attachment_id) {
+                            $wpdb->insert($customer_images_table, array(
+                                'customer_id' => $customer_id,
+                                'image_url' => wp_get_attachment_url($attachment_id),
+                                'attachment_id' => $attachment_id,
+                                'image_type' => 'additional',
+                                'created_at' => current_time('mysql')
+                            ));
+                        }
                     }
                 }
             }
         }
 
         wp_send_json_success('Customer information submitted successfully');
+    }
+
+    // Helper function to upload files to WordPress media library
+    private function upload_to_media_library($file) {
+        // Check if required functions are available
+        if (!function_exists('wp_handle_upload')) {
+            require_once(ABSPATH . 'wp-admin/includes/file.php');
+        }
+        if (!function_exists('wp_generate_attachment_metadata')) {
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+        }
+        if (!function_exists('media_handle_sideload')) {
+            require_once(ABSPATH . 'wp-admin/includes/media.php');
+        }
+
+        // Check file upload
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return new WP_Error('upload_error', 'File upload error: ' . $file['error']);
+        }
+
+        // Validate file type
+        $file_type = wp_check_filetype($file['name']);
+        if (!$file_type['type']) {
+            return new WP_Error('invalid_file_type', 'Invalid file type');
+        }
+
+        // Validate file size (5MB limit)
+        $max_size = 5 * 1024 * 1024; // 5MB in bytes
+        if ($file['size'] > $max_size) {
+            return new WP_Error('file_too_large', 'File size exceeds 5MB limit');
+        }
+
+        // Prepare file for upload
+        $upload = wp_handle_upload($file, array('test_form' => false));
+
+        if (isset($upload['error'])) {
+            return new WP_Error('upload_failed', $upload['error']);
+        }
+
+        // Create attachment post
+        $attachment = array(
+            'post_mime_type' => $upload['type'],
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($upload['file'])),
+            'post_content' => '',
+            'post_status' => 'inherit',
+            'guid' => $upload['url']
+        );
+
+        $attachment_id = wp_insert_attachment($attachment, $upload['file']);
+
+        if (is_wp_error($attachment_id)) {
+            return $attachment_id;
+        }
+
+        // Generate attachment metadata
+        $attachment_data = wp_generate_attachment_metadata($attachment_id, $upload['file']);
+        wp_update_attachment_metadata($attachment_id, $attachment_data);
+
+        return $attachment_id;
     }
 
     // Add this new method
@@ -253,7 +447,6 @@ class AgentDashboard {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             wp_send_json_error('Access denied');
         }
-
         wp_send_json_success($this->get_customer_list());
     }
 
@@ -261,6 +454,17 @@ class AgentDashboard {
         wp_enqueue_script('jquery');
         wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.0', true);
         wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css');
+
+        // Enqueue WooCommerce lightbox scripts if WooCommerce is active
+        if (class_exists('WooCommerce')) {
+            wp_enqueue_script('prettyPhoto', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.min.js', array('jquery'), '1.0.0', true);
+            wp_enqueue_script('prettyPhoto-init', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.init.min.js', array('jquery', 'prettyPhoto'), '1.0.0', true);
+            wp_enqueue_style('woocommerce_prettyPhoto_css', WC()->plugin_url() . '/assets/css/prettyPhoto.css');
+        } else {
+            // Fallback: Enqueue prettyPhoto from CDN if WooCommerce is not available
+            wp_enqueue_script('prettyPhoto', 'https://cdnjs.cloudflare.com/ajax/libs/prettyPhoto/3.1.6/js/jquery.prettyPhoto.min.js', array('jquery'), '3.1.6', true);
+            wp_enqueue_style('prettyPhoto-css', 'https://cdnjs.cloudflare.com/ajax/libs/prettyPhoto/3.1.6/css/prettyPhoto.min.css');
+        }
 
         wp_localize_script('agent-scripts', 'agent_dashboard_ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
