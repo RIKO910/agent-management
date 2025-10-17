@@ -71,9 +71,17 @@ class AgentDashboard {
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Passport Image *</label>
-                        <input type="file" name="passport_image" accept="image/*" required>
+                    <div class="image-form-group">
+                        <div class="form-group">
+                            <label>Passport Image *</label>
+                            <input type="file" name="passport_image" accept="image/*" required>
+                        </div>
+
+                        <div class="multiple-image-upload-section">
+                            <!-- Additional images will be added here dynamically -->
+                        </div>
+
+                        <button type="button" id="add-image-btn">+ Add Another Image</button>
                     </div>
 
                     <button type="submit">Submit Customer Information</button>
@@ -123,31 +131,41 @@ class AgentDashboard {
         $current_user_id = get_current_user_id();
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
 
-        if (!$agent) return '<tr><td colspan="6">No agent data found</td></tr>';
+        if (!$agent) return '<tr><td colspan="7">No agent data found</td></tr>';
 
         $customers = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $customers_table WHERE agent_id = %d ORDER BY created_at DESC", $agent->id
+            "SELECT c.*, COUNT(ci.id) as additional_images_count 
+         FROM $customers_table c 
+         LEFT JOIN $customer_images_table ci ON c.id = ci.customer_id 
+         WHERE c.agent_id = %d 
+         GROUP BY c.id 
+         ORDER BY c.created_at DESC", $agent->id
         ));
 
         if (empty($customers)) {
-            return '<tr><td colspan="6">No customers found</td></tr>';
+            return '<tr><td colspan="7">No customers found</td></tr>';
         }
 
         $html = '';
         foreach ($customers as $customer) {
+            $additional_images_text = $customer->additional_images_count > 0 ?
+                " (+{$customer->additional_images_count} more)" : "";
+
             $html .= '<tr>
-                <td>' . esc_html($customer->customer_name) . '</td>
-                <td>' . esc_html($customer->customer_phone) . '</td>
-                <td>' . esc_html($customer->passport_number) . '</td>
-                <td>' . esc_html($customer->visa_country) . '</td>
-                <td>' . esc_html($customer->submission_date) . '</td>
-                <td><span class="status-' . esc_attr($customer->status) . '">' . esc_html($customer->status) . '</span></td>
-            </tr>';
+            <td>' . esc_html($customer->customer_name) . '</td>
+            <td>' . esc_html($customer->customer_phone) . '</td>
+            <td>' . esc_html($customer->passport_number) . '</td>
+            <td>' . esc_html($customer->visa_country) . '</td>
+            <td>' . esc_html($customer->submission_date) . '</td>
+            <td><span class="status-' . esc_attr($customer->status) . '">' . esc_html($customer->status) . '</span></td>
+            <td>Yes' . esc_html($additional_images_text) . '</td>
+        </tr>';
         }
 
         return $html;
@@ -160,22 +178,13 @@ class AgentDashboard {
             wp_send_json_error('Access denied');
         }
 
-        // Handle file upload
-        if (!empty($_FILES['passport_image'])) {
-            $upload = wp_upload_bits($_FILES['passport_image']['name'], null, file_get_contents($_FILES['passport_image']['tmp_name']));
-
-            if ($upload['error']) {
-                wp_send_json_error('File upload failed');
-            }
-
-            $passport_image = $upload['url'];
-        }
-
         global $wpdb;
         $current_user_id = get_current_user_id();
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
+        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
@@ -184,6 +193,18 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
+        // Handle main passport image upload
+        if (empty($_FILES['passport_image'])) {
+            wp_send_json_error('Passport image is required');
+        }
+
+        $passport_upload = wp_upload_bits($_FILES['passport_image']['name'], null, file_get_contents($_FILES['passport_image']['tmp_name']));
+        if ($passport_upload['error']) {
+            wp_send_json_error('Passport image upload failed');
+        }
+        $passport_image = $passport_upload['url'];
+
+        // Insert customer data
         $wpdb->insert($customers_table, array(
             'agent_id' => $agent->id,
             'customer_name' => sanitize_text_field($_POST['customer_name']),
@@ -194,6 +215,33 @@ class AgentDashboard {
             'visa_type' => sanitize_text_field($_POST['visa_type']),
             'submission_date' => sanitize_text_field($_POST['submission_date'])
         ));
+
+        $customer_id = $wpdb->insert_id;
+
+        if (!$customer_id) {
+            wp_send_json_error('Failed to save customer information');
+        }
+
+        // Handle additional images
+        if (!empty($_FILES['additional_images'])) {
+            $additional_images = $_FILES['additional_images'];
+
+            // Loop through each additional image
+            foreach ($additional_images['name'] as $key => $name) {
+                if ($additional_images['error'][$key] === UPLOAD_ERR_OK) {
+                    $file_upload = wp_upload_bits($name, null, file_get_contents($additional_images['tmp_name'][$key]));
+
+                    if (!$file_upload['error']) {
+                        // Save additional image to database
+                        $wpdb->insert($customer_images_table, array(
+                            'customer_id' => $customer_id,
+                            'image_url' => $file_upload['url'],
+                            'image_type' => 'additional'
+                        ));
+                    }
+                }
+            }
+        }
 
         wp_send_json_success('Customer information submitted successfully');
     }

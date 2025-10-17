@@ -13,36 +13,49 @@ class AgentDatabase {
         // Agents table
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images'; // New table for images
 
         $sql_agents = "CREATE TABLE $agents_table (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            user_id mediumint(9) NOT NULL,
-            company_name varchar(100) NOT NULL,
-            phone varchar(20) NOT NULL,
-            address text NOT NULL,
-            license_number varchar(50) NOT NULL,
-            status varchar(20) DEFAULT 'pending',
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id)
-        ) $charset_collate;";
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        user_id mediumint(9) NOT NULL,
+        company_name varchar(100) NOT NULL,
+        phone varchar(20) NOT NULL,
+        address text NOT NULL,
+        license_number varchar(50) NOT NULL,
+        status varchar(20) DEFAULT 'pending',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
 
         $sql_customers = "CREATE TABLE $customers_table (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            agent_id mediumint(9) NOT NULL,
-            customer_name varchar(100) NOT NULL,
-            customer_phone varchar(20) NOT NULL,
-            passport_number varchar(50) NOT NULL,
-            passport_image varchar(255) NOT NULL,
-            visa_country varchar(50) NOT NULL,
-            visa_type varchar(50) NOT NULL,
-            submission_date date NOT NULL,
-            status varchar(20) DEFAULT 'pending',
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id)
-        ) $charset_collate;";
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        agent_id mediumint(9) NOT NULL,
+        customer_name varchar(100) NOT NULL,
+        customer_phone varchar(20) NOT NULL,
+        passport_number varchar(50) NOT NULL,
+        passport_image varchar(255) NOT NULL,
+        visa_country varchar(50) NOT NULL,
+        visa_type varchar(50) NOT NULL,
+        submission_date date NOT NULL,
+        status varchar(20) DEFAULT 'pending',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+
+        // New table for additional images
+        $sql_customer_images = "CREATE TABLE $customer_images_table (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        customer_id mediumint(9) NOT NULL,
+        image_url varchar(255) NOT NULL,
+        image_type varchar(50) DEFAULT 'additional',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        FOREIGN KEY (customer_id) REFERENCES $customers_table(id) ON DELETE CASCADE
+    ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_agents);
         dbDelta($sql_customers);
+        dbDelta($sql_customer_images);
     }
 }
