@@ -241,7 +241,7 @@ class AgentDashboard {
             <td>' . esc_html($customer->passport_number) . '</td>
             <td>' . esc_html($customer->visa_country) . '</td>
             <td>' . esc_html($customer->submission_date) . '</td>
-            <td>Pending</td>
+            <td>' . esc_html($customer->status) . '</td>
             <td>' . $images_html . '</td>
         </tr>';
         }
