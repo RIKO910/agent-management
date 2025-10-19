@@ -9,6 +9,8 @@ class AgentDashboard {
         add_shortcode('agent_dashboard', array($this, 'dashboard_shortcode'));
         add_action('wp_ajax_submit_customer_form', array($this, 'handle_customer_submission'));
         add_action('wp_ajax_get_customer_list', array($this, 'handle_get_customer_list'));
+        add_action('wp_ajax_load_more_customers', array($this, 'handle_load_more_customers'));
+        add_action('wp_ajax_get_customer_list_paginated', array($this, 'handle_get_customer_list_paginated'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
@@ -119,78 +121,8 @@ class AgentDashboard {
     }
 
     public function get_customer_list() {
-        if (!is_user_logged_in() || !current_user_can('agent')) {
-            return '<tr><td colspan="7">Access denied</td></tr>';
-        }
-
-        global $wpdb;
-        $current_user_id = get_current_user_id();
-        $agents_table = $wpdb->prefix . 'agents';
-        $customers_table = $wpdb->prefix . 'agent_customers';
-        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
-
-        // Get agent
-        $agent = $wpdb->get_row($wpdb->prepare(
-            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
-        ));
-
-        if (!$agent) {
-            return '<tr><td colspan="7">Agent not found</td></tr>';
-        }
-
-        // Get customers
-        $customers = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $customers_table WHERE agent_id = %d ORDER BY created_at DESC", $agent->id
-        ));
-
-        if (empty($customers)) {
-            return '<tr><td colspan="7">No customers found</td></tr>';
-        }
-
-        $output = '';
-
-        foreach ($customers as $customer) {
-            // Get additional images for this customer
-            $additional_images = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $customer_images_table WHERE customer_id = %d", $customer->id
-            ));
-
-            $images_html = '';
-
-            if (!empty($additional_images) || $customer->passport_image) {
-                $images_html = '<div class="customer-images">';
-
-                // Add passport image
-                if ($customer->passport_image) {
-                    $images_html .= '<a href="' . esc_url($customer->passport_image) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Passport Image">';
-                    $images_html .= '<img src="' . esc_url($customer->passport_image) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
-                    $images_html .= '</a>';
-                }
-
-                // Add additional images
-                foreach ($additional_images as $image) {
-                    $images_html .= '<a href="' . esc_url($image->image_url) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Additional Image">';
-                    $images_html .= '<img src="' . esc_url($image->image_url) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
-                    $images_html .= '</a>';
-                }
-
-                $images_html .= '</div>';
-            } else {
-                $images_html = 'No images';
-            }
-
-            $output .= '<tr>
-            <td>' . esc_html($customer->customer_name) . '</td>
-            <td>' . esc_html($customer->customer_phone) . '</td>
-            <td>' . esc_html($customer->passport_number) . '</td>
-            <td>' . esc_html($customer->visa_country) . '</td>
-            <td>' . esc_html($customer->submission_date) . '</td>
-            <td>' . esc_html($customer->status) . '</td>
-            <td>' . $images_html . '</td>
-        </tr>';
-        }
-
-        return $output;
+        $result = $this->get_customer_list_paginated(1, 5);
+        return $result['html'];
     }
 
     public function handle_customer_submission() {
@@ -373,6 +305,141 @@ class AgentDashboard {
         wp_send_json_success($this->get_customer_list());
     }
 
+    // Add this method to handle paginated customer list
+    public function get_customer_list_paginated($page = 1, $per_page = 5) {
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            return array(
+                'html' => '<tr><td colspan="7">Access denied</td></tr>',
+                'has_more' => false
+            );
+        }
+
+        global $wpdb;
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
+
+        // Get agent
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            return array(
+                'html' => '<tr><td colspan="7">Agent not found</td></tr>',
+                'has_more' => false
+            );
+        }
+
+        // Calculate offset
+        $offset = ($page - 1) * $per_page;
+
+        // Get total count
+        $total_customers = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $customers_table WHERE agent_id = %d", $agent->id
+        ));
+
+        // Get paginated customers
+        $customers = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $customers_table 
+         WHERE agent_id = %d 
+         ORDER BY created_at DESC 
+         LIMIT %d OFFSET %d",
+            $agent->id, $per_page, $offset
+        ));
+
+        if (empty($customers)) {
+            return array(
+                'html' => '<tr><td colspan="7">No customers found</td></tr>',
+                'has_more' => false
+            );
+        }
+
+        $output = '';
+
+        foreach ($customers as $customer) {
+            // Get additional images for this customer
+            $additional_images = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $customer_images_table WHERE customer_id = %d", $customer->id
+            ));
+
+            $images_html = '';
+
+            if (!empty($additional_images) || $customer->passport_image) {
+                $images_html = '<div class="customer-images">';
+
+                // Add passport image
+                if ($customer->passport_image) {
+                    $images_html .= '<a href="' . esc_url($customer->passport_image) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Passport Image">';
+                    $images_html .= '<img src="' . esc_url($customer->passport_image) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
+                    $images_html .= '</a>';
+                }
+
+                // Add additional images
+                foreach ($additional_images as $image) {
+                    $images_html .= '<a href="' . esc_url($image->image_url) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Additional Image">';
+                    $images_html .= '<img src="' . esc_url($image->image_url) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
+                    $images_html .= '</a>';
+                }
+
+                $images_html .= '</div>';
+            } else {
+                $images_html = 'No images';
+            }
+
+            $output .= '<tr>
+            <td>' . esc_html($customer->customer_name) . '</td>
+            <td>' . esc_html($customer->customer_phone) . '</td>
+            <td>' . esc_html($customer->passport_number) . '</td>
+            <td>' . esc_html($customer->visa_country) . '</td>
+            <td>' . esc_html($customer->submission_date) . '</td>
+            <td>' . esc_html($customer->status) . '</td>
+            <td>' . $images_html . '</td>
+        </tr>';
+        }
+
+        $has_more = ($total_customers > ($offset + $per_page));
+
+        return array(
+            'html' => $output,
+            'has_more' => $has_more,
+            'total' => $total_customers
+        );
+    }
+
+
+    // Add AJAX handler for loading more customers
+    public function handle_load_more_customers() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $per_page = 5;
+
+        $result = $this->get_customer_list_paginated($page, $per_page);
+
+        wp_send_json_success($result);
+    }
+
+    // Add this method to handle paginated customer list requests
+    public function handle_get_customer_list_paginated() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $per_page = isset($_POST['per_page']) ? intval($_POST['per_page']) : 5;
+
+        $result = $this->get_customer_list_paginated($page, $per_page);
+        wp_send_json_success($result);
+    }
+
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
         wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.0', true);
@@ -395,4 +462,3 @@ class AgentDashboard {
         ));
     }
 }
-?>
