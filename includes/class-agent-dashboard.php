@@ -14,6 +14,7 @@ class AgentDashboard {
         add_action('wp_ajax_delete_customer', array($this, 'handle_delete_customer'));
         add_action('wp_ajax_get_customer_details', array($this, 'handle_get_customer_details'));
         add_action('wp_ajax_update_customer', array($this, 'handle_update_customer'));
+        add_action('wp_ajax_delete_customer_image', array($this, 'handle_delete_customer_image'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
@@ -92,7 +93,10 @@ class AgentDashboard {
                         <button type="button" id="add-image-btn">+ Add Another Image</button>
                     </div>
 
-                    <button type="submit">Submit Customer Information</button>
+                    <div class="form-buttons" style="display: flex; gap: 10px;">
+                        <button type="submit">Submit Customer Information</button>
+                        <button type="button" id="cancel-edit-btn" style="display: none; background: #757575;">Cancel Edit</button>
+                    </div>
                 </form>
                 <div id="formMessage"></div>
             </div>
@@ -501,7 +505,7 @@ class AgentDashboard {
         wp_send_json_success('Customer deleted successfully');
     }
 
-// Get customer details handler
+    // Get customer details handler
     public function handle_get_customer_details() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -518,6 +522,7 @@ class AgentDashboard {
         $current_user_id = get_current_user_id();
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
         // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
@@ -537,6 +542,15 @@ class AgentDashboard {
         if (!$customer) {
             wp_send_json_error('Customer not found or access denied');
         }
+
+        // Get additional images
+        $additional_images = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $customer_images_table WHERE customer_id = %d",
+            $customer_id
+        ));
+
+        // Add additional images to customer object
+        $customer->additional_images = $additional_images;
 
         wp_send_json_success($customer);
     }
@@ -658,6 +672,56 @@ class AgentDashboard {
         }
 
         wp_send_json_success('Customer information updated successfully');
+    }
+
+    // Handle deleting individual customer images
+    public function handle_delete_customer_image() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        if (empty($_POST['image_id'])) {
+            wp_send_json_error('Image ID is required');
+        }
+
+        global $wpdb;
+        $image_id = intval($_POST['image_id']);
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
+
+        // Get agent
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        // Get image and verify ownership
+        $image = $wpdb->get_row($wpdb->prepare(
+            "SELECT ci.* FROM $customer_images_table ci
+         INNER JOIN $customers_table c ON ci.customer_id = c.id
+         WHERE ci.id = %d AND c.agent_id = %d",
+            $image_id, $agent->id
+        ));
+
+        if (!$image) {
+            wp_send_json_error('Image not found or access denied');
+        }
+
+        // Delete the image record
+        $result = $wpdb->delete($customer_images_table, array('id' => $image_id));
+
+        if ($result === false) {
+            wp_send_json_error('Failed to delete image');
+        }
+
+        wp_send_json_success('Image deleted successfully');
     }
 
     public function enqueue_scripts() {

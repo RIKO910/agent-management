@@ -412,6 +412,7 @@ function initializeLightbox() {
 }
 
 
+// Enhanced populateEditForm function with image preview
 function populateEditForm(customer) {
     const form = jQuery('#customerForm');
 
@@ -430,14 +431,64 @@ function populateEditForm(customer) {
     form.find('select[name="visa_type"]').val(customer.visa_type);
     form.find('input[name="submission_date"]').val(customer.submission_date);
 
+    // Handle passport image preview
+    const passportInput = form.find('input[name="passport_image"]');
+    passportInput.removeAttr('required');
+
+    // Remove any existing preview
+    jQuery('.passport-image-preview').remove();
+
+    // Add current passport image preview
+    if (customer.passport_image) {
+        const previewHTML = `
+            <div class="passport-image-preview" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #666;">Current Passport Image:</p>
+                <img src="${customer.passport_image}" style="max-width: 200px; height: auto; border-radius: 4px; border: 2px solid #ddd;">
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">Upload a new image to replace this one (optional)</p>
+            </div>
+        `;
+        passportInput.parent().find('label').after(previewHTML);
+    }
+
+    // Handle additional images preview
+    jQuery('.additional-images-preview').remove();
+
+    if (customer.additional_images && customer.additional_images.length > 0) {
+        let additionalImagesHTML = `
+            <div class="additional-images-preview" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #666;">Current Additional Images:</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        `;
+
+        customer.additional_images.forEach(function(image) {
+            additionalImagesHTML += `
+                <div class="preview-image-item" style="position: relative;">
+                    <img src="${image.image_url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 2px solid #ddd;">
+                    <button type="button" class="delete-additional-image" data-image-id="${image.id}" 
+                            style="position: absolute; top: -5px; right: -5px; background: #f44336; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">×</button>
+                </div>
+            `;
+        });
+
+        additionalImagesHTML += `
+                </div>
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">You can delete images above or add new ones below</p>
+            </div>
+        `;
+
+        form.find('.multiple-image-upload-section').before(additionalImagesHTML);
+    }
+
     // Change submit button text
     form.find('button[type="submit"]').text('Update Customer Information');
 
-    // Remove required attribute from passport image when editing
-    form.find('input[name="passport_image"]').removeAttr('required');
-
     // Show message
-    jQuery('#formMessage').html('<div class="info">Editing customer: ' + customer.customer_name + '</div>');
+    jQuery('#formMessage').html('<div class="info">Editing customer: <strong>' + customer.customer_name + '</strong><br>Make your changes and click Update to save.</div>');
+
+    // Scroll to form
+    jQuery('html, body').animate({
+        scrollTop: form.offset().top - 100
+    }, 500);
 }
 
 jQuery(document).ready(function($) {
@@ -454,4 +505,111 @@ jQuery(document).ready(function($) {
             loadCustomerList();
         }
     });
+
+
+    // Add handler for deleting additional images
+    jQuery(document).on('click', '.delete-additional-image', function() {
+        if (!confirm('Are you sure you want to delete this image?')) {
+            return;
+        }
+
+        const imageId = jQuery(this).data('image-id');
+        const $imageItem = jQuery(this).closest('.preview-image-item');
+
+        jQuery.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'delete_customer_image',
+                image_id: imageId,
+                nonce: agent_dashboard_ajax.nonce
+            },
+            beforeSend: function() {
+                $imageItem.css('opacity', '0.5');
+            },
+            success: function(response) {
+                if (response.success) {
+                    $imageItem.fadeOut(300, function() {
+                        jQuery(this).remove();
+                        // Check if no more images
+                        if (jQuery('.preview-image-item').length === 0) {
+                            jQuery('.additional-images-preview').remove();
+                        }
+                    });
+                } else {
+                    alert('Error: ' + response.data);
+                    $imageItem.css('opacity', '1');
+                }
+            },
+            error: function() {
+                alert('Failed to delete image. Please try again.');
+                $imageItem.css('opacity', '1');
+            }
+        });
+    });
+
+// Add image preview on file selection
+    jQuery(document).on('change', 'input[name="passport_image"]', function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Remove old preview
+                jQuery('.new-passport-preview').remove();
+
+                // Add new preview
+                const previewHTML = `
+                <div class="new-passport-preview" style="margin: 10px 0; padding: 10px; background: #e8f5e9; border-radius: 5px;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold; color: #2e7d32;">New Passport Image Preview:</p>
+                    <img src="${e.target.result}" style="max-width: 200px; height: auto; border-radius: 4px; border: 2px solid #4caf50;">
+                </div>
+            `;
+                jQuery('input[name="passport_image"]').parent().append(previewHTML);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+// Add preview for additional images
+    jQuery(document).on('change', 'input[name="additional_images[]"]', function() {
+        const file = this.files[0];
+        const $parent = jQuery(this).parent();
+
+        // Remove existing preview in this field
+        $parent.find('.additional-image-preview').remove();
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewHTML = `
+                <div class="additional-image-preview" style="margin: 10px 0;">
+                    <img src="${e.target.result}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 2px solid #4caf50;">
+                </div>
+            `;
+                $parent.append(previewHTML);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // Update form reset to clear all edit-related elements
+    jQuery('#customerForm').on('reset', function() {
+        jQuery('#customer_id_hidden').remove();
+        jQuery('.passport-image-preview').remove();
+        jQuery('.new-passport-preview').remove();
+        jQuery('.additional-images-preview').remove();
+        jQuery('.additional-image-preview').remove();
+        jQuery('#customerForm button[type="submit"]').text('Submit Customer Information');
+        jQuery('input[name="passport_image"]').attr('required', 'required');
+        jQuery('#formMessage').empty();
+    });
+
+    // Add cancel edit button functionality
+    jQuery(document).on('click', '#cancel-edit-btn', function() {
+        if (confirm('Are you sure you want to cancel editing? Any unsaved changes will be lost.')) {
+            jQuery('#customerForm')[0].reset();
+            jQuery('#customerForm').trigger('reset');
+        }
+    });
+
 });
