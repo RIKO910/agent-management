@@ -149,11 +149,19 @@ jQuery(document).ready(function($) {
 
         var formData = new FormData(this);
 
+        // Get submit button and store original text
+        const submitButton = $('#customerForm button[type="submit"]');
+        const originalText = submitButton.text();
+
+        // Disable submit button and show loading state
+        submitButton.prop('disabled', true).html('<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="loading-spinner"></span>Submitting...</span>');
+
         // Check if we're updating an existing customer
         const customerId = $('#customer_id_hidden').val();
         if (customerId) {
             formData.append('action', 'update_customer');
             formData.append('customer_id', customerId);
+            submitButton.html('<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="loading-spinner"></span>Updating...</span>');
         } else {
             formData.append('action', 'submit_customer_form');
         }
@@ -170,13 +178,30 @@ jQuery(document).ready(function($) {
                     $('#customerForm')[0].reset();
                     $('.additional-image-field').remove();
                     $('#customer_id_hidden').remove();
-                    $('#customerForm button[type="submit"]').text('Submit Customer Information');
+                    $('.passport-image-preview').remove();
+                    $('.new-passport-preview').remove();
+                    $('.additional-images-preview').remove();
+                    $('.additional-image-preview').remove();
+
+                    // Reset form mode
+                    if (typeof updateFormMode === 'function') {
+                        updateFormMode(false);
+                    }
+
+                    submitButton.text('Submit Customer Information');
 
                     // Refresh customer list
                     resetPagination();
                     if (typeof loadCustomerList === 'function') {
                         loadCustomerList();
                     }
+
+                    // Auto-hide success message after 5 seconds
+                    setTimeout(function() {
+                        $('#formMessage').fadeOut(300, function() {
+                            $(this).empty().show();
+                        });
+                    }, 5000);
                 } else {
                     $('#formMessage').html('<div class="error">' + response.data + '</div>');
                 }
@@ -184,6 +209,12 @@ jQuery(document).ready(function($) {
             error: function(xhr, status, error) {
                 console.error('AJAX Error:', error);
                 $('#formMessage').html('<div class="error">An error occurred. Please try again.</div>');
+            },
+            complete: function() {
+                // Re-enable button with original or default text
+                const isEditMode = $('#customer_id_hidden').length > 0;
+                const buttonText = isEditMode ? 'Update Customer Information' : 'Submit Customer Information';
+                submitButton.prop('disabled', false).text(buttonText);
             }
         });
     });

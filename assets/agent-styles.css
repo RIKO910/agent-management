@@ -494,13 +494,12 @@ button[type="submit"]:active,
 
 .loading-spinner {
     display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3498db;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-right: 10px;
+    animation: spin 0.6s linear infinite;
 }
 
 @keyframes spin {
@@ -560,4 +559,20 @@ button[type="submit"]:active,
     .pagination-buttons {
         order: 1;
     }
+}
+
+/* Enhanced button styles */
+#customerForm button[type="submit"] {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#customerForm button[type="submit"]:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#customerForm button[type="submit"]:not(:disabled):active {
+    transform: translateY(0);
 }
