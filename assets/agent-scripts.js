@@ -149,8 +149,14 @@ jQuery(document).ready(function($) {
 
         var formData = new FormData(this);
 
-        // Add the action parameter correctly
-        formData.append('action', 'submit_customer_form');
+        // Check if we're updating an existing customer
+        const customerId = $('#customer_id_hidden').val();
+        if (customerId) {
+            formData.append('action', 'update_customer');
+            formData.append('customer_id', customerId);
+        } else {
+            formData.append('action', 'submit_customer_form');
+        }
 
         $.ajax({
             url: agent_dashboard_ajax.ajaxurl,
@@ -163,8 +169,10 @@ jQuery(document).ready(function($) {
                     $('#formMessage').html('<div class="success">' + response.data + '</div>');
                     $('#customerForm')[0].reset();
                     $('.additional-image-field').remove();
+                    $('#customer_id_hidden').remove();
+                    $('#customerForm button[type="submit"]').text('Submit Customer Information');
 
-                    // Refresh customer list and reset pagination
+                    // Refresh customer list
                     resetPagination();
                     if (typeof loadCustomerList === 'function') {
                         loadCustomerList();
@@ -179,6 +187,7 @@ jQuery(document).ready(function($) {
             }
         });
     });
+
 
     // Add some interactive effects
     $('.form-group input, .form-group select, .form-group textarea').on('focus', function() {
@@ -201,6 +210,73 @@ jQuery(document).ready(function($) {
         $(this).css('transform', 'scale(1.02)');
     }).on('mouseleave', '.customer-table tbody tr', function() {
         $(this).css('transform', 'scale(1)');
+    });
+
+    $(document).on('click', '.delete-customer-btn', function() {
+        if (!confirm('Are you sure you want to delete this customer?')) {
+            return;
+        }
+
+        const customerId = $(this).data('customer-id');
+        const $row = $(this).closest('tr');
+
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'delete_customer',
+                customer_id: customerId,
+                nonce: agent_dashboard_ajax.nonce
+            },
+            beforeSend: function() {
+                $row.css('opacity', '0.5');
+            },
+            success: function(response) {
+                if (response.success) {
+                    $row.fadeOut(300, function() {
+                        $(this).remove();
+                        // Reload the current page to update counts
+                        loadCustomerList();
+                    });
+                    alert('Customer deleted successfully');
+                } else {
+                    alert('Error: ' + response.data);
+                    $row.css('opacity', '1');
+                }
+            },
+            error: function() {
+                alert('Failed to delete customer. Please try again.');
+                $row.css('opacity', '1');
+            }
+        });
+    });
+
+    // Edit customer handler
+    $(document).on('click', '.edit-customer-btn', function() {
+        const customerId = $(this).data('customer-id');
+
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'get_customer_details',
+                customer_id: customerId,
+                nonce: agent_dashboard_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    console.log(response.data);
+                    populateEditForm(response.data);
+                    // Switch to customer form tab
+                    $('.tab-button[data-tab="customer-form"]').click();
+                } else {
+                    alert('Error: ' + response.data);
+                }
+            },
+            error: function() {
+                alert('Failed to load customer details. Please try again.');
+            }
+        });
     });
 
 });
@@ -333,6 +409,35 @@ function initializeLightbox() {
             deeplinking: false
         });
     }
+}
+
+
+function populateEditForm(customer) {
+    const form = jQuery('#customerForm');
+
+    // Add hidden field for customer ID
+    if (jQuery('#customer_id_hidden').length === 0) {
+        form.prepend('<input type="hidden" id="customer_id_hidden" name="customer_id" value="' + customer.id + '">');
+    } else {
+        jQuery('#customer_id_hidden').val(customer.id);
+    }
+
+    // Populate form fields
+    form.find('input[name="customer_name"]').val(customer.customer_name);
+    form.find('input[name="customer_phone"]').val(customer.customer_phone);
+    form.find('input[name="passport_number"]').val(customer.passport_number);
+    form.find('input[name="visa_country"]').val(customer.visa_country);
+    form.find('select[name="visa_type"]').val(customer.visa_type);
+    form.find('input[name="submission_date"]').val(customer.submission_date);
+
+    // Change submit button text
+    form.find('button[type="submit"]').text('Update Customer Information');
+
+    // Remove required attribute from passport image when editing
+    form.find('input[name="passport_image"]').removeAttr('required');
+
+    // Show message
+    jQuery('#formMessage').html('<div class="info">Editing customer: ' + customer.customer_name + '</div>');
 }
 
 jQuery(document).ready(function($) {

@@ -11,6 +11,9 @@ class AgentDashboard {
         add_action('wp_ajax_get_customer_list', array($this, 'handle_get_customer_list'));
         add_action('wp_ajax_load_more_customers', array($this, 'handle_load_more_customers'));
         add_action('wp_ajax_get_customer_list_paginated', array($this, 'handle_get_customer_list_paginated'));
+        add_action('wp_ajax_delete_customer', array($this, 'handle_delete_customer'));
+        add_action('wp_ajax_get_customer_details', array($this, 'handle_get_customer_details'));
+        add_action('wp_ajax_update_customer', array($this, 'handle_update_customer'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
@@ -107,6 +110,7 @@ class AgentDashboard {
                             <th>Submission Date</th>
                             <th>Status</th>
                             <th>Images</th>
+                            <th>Actions</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -388,6 +392,12 @@ class AgentDashboard {
                 $images_html = 'No images';
             }
 
+            // Add action buttons
+            $actions_html = '<div class="customer-actions" style="display: flex; gap: 5px;">';
+            $actions_html .= '<button class="edit-customer-btn" data-customer-id="' . $customer->id . '" style="padding: 5px 10px; background: #2196f3; color: white; border: none; border-radius: 3px; cursor: pointer;">Edit</button>';
+            $actions_html .= '<button class="delete-customer-btn" data-customer-id="' . $customer->id . '" style="padding: 5px 10px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer;">Delete</button>';
+            $actions_html .= '</div>';
+
             $output .= '<tr>
             <td>' . esc_html($customer->customer_name) . '</td>
             <td>' . esc_html($customer->customer_phone) . '</td>
@@ -396,6 +406,7 @@ class AgentDashboard {
             <td>' . esc_html($customer->submission_date) . '</td>
             <td>' . esc_html($customer->status) . '</td>
             <td>' . $images_html . '</td>
+            <td>' . $actions_html . '</td>
         </tr>';
         }
 
@@ -438,6 +449,215 @@ class AgentDashboard {
 
         $result = $this->get_customer_list_paginated($page, $per_page);
         wp_send_json_success($result);
+    }
+
+    public function handle_delete_customer() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        if (empty($_POST['customer_id'])) {
+            wp_send_json_error('Customer ID is required');
+        }
+
+        global $wpdb;
+        $customer_id = intval($_POST['customer_id']);
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
+
+        // Get agent
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        // Verify this customer belongs to this agent
+        $customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
+            $customer_id, $agent->id
+        ));
+
+        if (!$customer) {
+            wp_send_json_error('Customer not found or access denied');
+        }
+
+        // Delete associated images from database
+        $wpdb->delete($customer_images_table, array('customer_id' => $customer_id));
+
+        // Delete customer
+        $result = $wpdb->delete($customers_table, array('id' => $customer_id));
+
+        if ($result === false) {
+            wp_send_json_error('Failed to delete customer');
+        }
+
+        wp_send_json_success('Customer deleted successfully');
+    }
+
+// Get customer details handler
+    public function handle_get_customer_details() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        if (empty($_POST['customer_id'])) {
+            wp_send_json_error('Customer ID is required');
+        }
+
+        global $wpdb;
+        $customer_id = intval($_POST['customer_id']);
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+
+        // Get agent
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        // Get customer details
+        $customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
+            $customer_id, $agent->id
+        ));
+
+        if (!$customer) {
+            wp_send_json_error('Customer not found or access denied');
+        }
+
+        wp_send_json_success($customer);
+    }
+
+// Update customer handler
+    public function handle_update_customer() {
+        check_ajax_referer('customer_form_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        if (empty($_POST['customer_id'])) {
+            wp_send_json_error('Customer ID is required');
+        }
+
+        global $wpdb;
+        $customer_id = intval($_POST['customer_id']);
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
+
+        // Get agent
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        // Verify this customer belongs to this agent
+        $existing_customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
+            $customer_id, $agent->id
+        ));
+
+        if (!$existing_customer) {
+            wp_send_json_error('Customer not found or access denied');
+        }
+
+        // Validate required fields
+        $required_fields = array(
+            'customer_name',
+            'customer_phone',
+            'passport_number',
+            'visa_country',
+            'visa_type',
+            'submission_date'
+        );
+
+        foreach ($required_fields as $field) {
+            if (empty($_POST[$field])) {
+                wp_send_json_error('Please fill all required fields');
+            }
+        }
+
+        // Prepare update data
+        $customer_data = array(
+            'customer_name' => sanitize_text_field($_POST['customer_name']),
+            'customer_phone' => sanitize_text_field($_POST['customer_phone']),
+            'passport_number' => sanitize_text_field($_POST['passport_number']),
+            'visa_country' => sanitize_text_field($_POST['visa_country']),
+            'visa_type' => sanitize_text_field($_POST['visa_type']),
+            'submission_date' => sanitize_text_field($_POST['submission_date'])
+        );
+
+        // Handle passport image update if new one is uploaded
+        if (!empty($_FILES['passport_image']) && $_FILES['passport_image']['error'] === UPLOAD_ERR_OK) {
+            $passport_attachment_id = $this->upload_to_media_library($_FILES['passport_image']);
+            if (!is_wp_error($passport_attachment_id) && $passport_attachment_id) {
+                $passport_image_url = wp_get_attachment_url($passport_attachment_id);
+                if ($passport_image_url) {
+                    $customer_data['passport_image'] = $passport_image_url;
+                }
+            }
+        }
+
+        // Update customer
+        $result = $wpdb->update(
+            $customers_table,
+            $customer_data,
+            array('id' => $customer_id)
+        );
+
+        if ($result === false) {
+            wp_send_json_error('Failed to update customer: ' . $wpdb->last_error);
+        }
+
+        // Handle additional images if uploaded
+        if (!empty($_FILES['additional_images'])) {
+            $additional_images = $_FILES['additional_images'];
+
+            if (is_array($additional_images['name'])) {
+                foreach ($additional_images['name'] as $key => $name) {
+                    if ($additional_images['error'][$key] === UPLOAD_ERR_OK) {
+                        $file = array(
+                            'name' => $name,
+                            'type' => $additional_images['type'][$key],
+                            'tmp_name' => $additional_images['tmp_name'][$key],
+                            'error' => $additional_images['error'][$key],
+                            'size' => $additional_images['size'][$key]
+                        );
+
+                        $attachment_id = $this->upload_to_media_library($file);
+
+                        if (!is_wp_error($attachment_id) && $attachment_id) {
+                            $wpdb->insert($customer_images_table, array(
+                                'customer_id' => $customer_id,
+                                'image_url' => wp_get_attachment_url($attachment_id),
+                                'image_type' => 'additional',
+                                'created_at' => current_time('mysql')
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        wp_send_json_success('Customer information updated successfully');
     }
 
     public function enqueue_scripts() {
