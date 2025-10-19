@@ -92,6 +92,7 @@ class AgentAuth {
     }
 
     public function handle_login() {
+        global $wpdb;
         // Check nonce
         if (!wp_verify_nonce($_POST['nonce'], 'agent_auth_nonce')) {
             wp_send_json_error('Security verification failed');
@@ -109,6 +110,22 @@ class AgentAuth {
         // Check if user has agent role or is admin
         if (!$this->is_agent($user) && !user_can($user, 'administrator')) {
             wp_send_json_error('Access denied. Agent role required.');
+        }
+
+
+        // For agents (non-admins), check their status in the agents table
+        if ($this->is_agent($user) && !user_can($user, 'administrator')) {
+            $agents_table = $wpdb->prefix . 'agents';
+
+            $agent_status = $wpdb->get_var($wpdb->prepare(
+                "SELECT status FROM $agents_table WHERE user_id = %d",
+                $user->ID
+            ));
+
+            // If no record found or status not approved, deny access
+            if (!$agent_status || $agent_status !== 'approved') {
+                wp_send_json_error('Your agent account is pending approval. Please contact administrator.');
+            }
         }
 
         wp_set_current_user($user->ID);
