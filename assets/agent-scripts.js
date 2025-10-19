@@ -254,6 +254,13 @@ jQuery(document).ready(function($) {
     // Edit customer handler
     $(document).on('click', '.edit-customer-btn', function() {
         const customerId = $(this).data('customer-id');
+        const editButton = $(this);
+
+        // Store original text
+        const originalText = editButton.text();
+
+        // Disable button and show loading state
+        editButton.prop('disabled', true).html('Loading...');
 
         $.ajax({
             url: agent_dashboard_ajax.ajaxurl,
@@ -275,6 +282,10 @@ jQuery(document).ready(function($) {
             },
             error: function() {
                 alert('Failed to load customer details. Please try again.');
+            },
+            complete: function() {
+                // Re-enable button and restore original text
+                editButton.prop('disabled', false).html(originalText);
             }
         });
     });
