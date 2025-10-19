@@ -95,7 +95,23 @@ jQuery(document).ready(function($) {
 
         $(this).addClass('active');
         $('#' + $(this).data('tab')).addClass('active');
+
+        // Refresh customer list when switching to that tab
+        if ($(this).data('tab') === 'customer-list') {
+            loadCustomerList();
+        }
     });
+
+    // Initialize lightbox
+    if (typeof $.prettyPhoto !== 'undefined') {
+        $('a[rel^="prettyPhoto"]').prettyPhoto({
+            social_tools: false,
+            theme: 'pp_woocommerce',
+            horizontal_padding: 20,
+            opacity: 0.8,
+            deeplinking: false
+        });
+    }
 
     // Add multiple image fields
     $('#add-image-btn').click(function() {
@@ -185,3 +201,29 @@ jQuery(document).ready(function($) {
         }
     );
 });
+
+function loadCustomerList() {
+    jQuery.ajax({
+        url: agent_dashboard_ajax.ajaxurl,
+        type: 'POST',
+        data: {
+            action: 'get_customer_list'
+        },
+        success: function(response) {
+            if (response.success) {
+                jQuery('.customer-table tbody').html(response.data);
+
+                // Re-initialize lightbox for new content
+                if (typeof jQuery.prettyPhoto !== 'undefined') {
+                    jQuery('a[rel^="prettyPhoto"]').prettyPhoto({
+                        social_tools: false,
+                        theme: 'pp_woocommerce',
+                        horizontal_padding: 20,
+                        opacity: 0.8,
+                        deeplinking: false
+                    });
+                }
+            }
+        }
+    });
+}

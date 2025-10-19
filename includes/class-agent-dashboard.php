@@ -114,62 +114,6 @@ class AgentDashboard {
                 </div>
             </div>
         </div>
-
-        <script>
-            jQuery(document).ready(function($) {
-                // Tab functionality
-                $('.tab-button').click(function() {
-                    $('.tab-button').removeClass('active');
-                    $('.tab-content').removeClass('active');
-
-                    $(this).addClass('active');
-                    $('#' + $(this).data('tab')).addClass('active');
-
-                    // Refresh customer list when switching to that tab
-                    if ($(this).data('tab') === 'customer-list') {
-                        loadCustomerList();
-                    }
-                });
-
-                // Initialize lightbox
-                if (typeof $.prettyPhoto !== 'undefined') {
-                    $('a[rel^="prettyPhoto"]').prettyPhoto({
-                        social_tools: false,
-                        theme: 'pp_woocommerce',
-                        horizontal_padding: 20,
-                        opacity: 0.8,
-                        deeplinking: false
-                    });
-                }
-            });
-
-            // Function to load customer list via AJAX
-            function loadCustomerList() {
-                jQuery.ajax({
-                    url: agent_dashboard_ajax.ajaxurl,
-                    type: 'POST',
-                    data: {
-                        action: 'get_customer_list'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            jQuery('.customer-table tbody').html(response.data);
-
-                            // Re-initialize lightbox for new content
-                            if (typeof jQuery.prettyPhoto !== 'undefined') {
-                                jQuery('a[rel^="prettyPhoto"]').prettyPhoto({
-                                    social_tools: false,
-                                    theme: 'pp_woocommerce',
-                                    horizontal_padding: 20,
-                                    opacity: 0.8,
-                                    deeplinking: false
-                                });
-                            }
-                        }
-                    }
-                });
-            }
-        </script>
         <?php
         return ob_get_clean();
     }
@@ -249,32 +193,12 @@ class AgentDashboard {
         return $output;
     }
 
-    private function debug_upload_info() {
-        error_log('=== UPLOAD DEBUG INFO ===');
-        error_log('Files: ' . print_r($_FILES, true));
-        error_log('Post: ' . print_r($_POST, true));
-
-        // Check upload directory
-        $upload_dir = wp_upload_dir();
-        error_log('Upload dir: ' . print_r($upload_dir, true));
-
-        // Check permissions
-        error_log('Upload dir writable: ' . (is_writable($upload_dir['path']) ? 'Yes' : 'No'));
-
-        // Check PHP upload settings
-        error_log('upload_max_filesize: ' . ini_get('upload_max_filesize'));
-        error_log('post_max_size: ' . ini_get('post_max_size'));
-        error_log('max_file_uploads: ' . ini_get('max_file_uploads'));
-    }
-
     public function handle_customer_submission() {
         check_ajax_referer('customer_form_nonce', 'nonce');
 
         if (!is_user_logged_in() || !current_user_can('agent')) {
             wp_send_json_error('Access denied');
         }
-
-        $this->debug_upload_info();
 
         global $wpdb;
         $current_user_id = get_current_user_id();
