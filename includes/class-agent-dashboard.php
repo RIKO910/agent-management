@@ -396,6 +396,9 @@ class AgentDashboard {
                 $images_html = 'No images';
             }
 
+            $status_class = 'status-' . $customer->status;
+            $status_display = ucfirst($customer->status);
+
             // Add action buttons
             $actions_html = '<div class="customer-actions" style="display: flex; gap: 5px;">';
             $actions_html .= '<button class="edit-customer-btn" data-customer-id="' . $customer->id . '" style="padding: 5px 10px; background: #2196f3; color: white; border: none; border-radius: 3px; cursor: pointer;">Edit</button>';
@@ -408,7 +411,7 @@ class AgentDashboard {
             <td>' . esc_html($customer->passport_number) . '</td>
             <td>' . esc_html($customer->visa_country) . '</td>
             <td>' . esc_html($customer->submission_date) . '</td>
-            <td>' . esc_html($customer->status) . '</td>
+            <td><span class="' . $status_class . '">' . $status_display . '</span></td>
             <td>' . $images_html . '</td>
             <td>' . $actions_html . '</td>
         </tr>';
