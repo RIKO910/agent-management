@@ -149,4 +149,22 @@
                     .html('<p class="amg-modal-error">Request failed. Please try again.</p>');
             });
     });
+    $(document).on('click', '.amg-fe-mirror .country-pill', function (e) {
+        e.preventDefault();
+        var country = $(this).attr('data-country');
+        var $root = $(this).closest('.amg-fe-mirror');
+        if (!country || !$root.length) return;
+
+        $root.find('.country-pill').removeClass('active');
+        $(this).addClass('active');
+
+        $root.find('.amg-country-panel').each(function () {
+            var panelCountry = $(this).attr('data-country-panel');
+            if (panelCountry === country) {
+                $(this).removeAttr('hidden');
+            } else {
+                $(this).attr('hidden', 'hidden');
+            }
+        });
+    });
 })(jQuery);

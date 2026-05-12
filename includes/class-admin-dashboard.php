@@ -29,14 +29,14 @@ class AdminDashboard {
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.css',
 			array(),
-			'1.2'
+			'1.3'
 		);
 
 		wp_enqueue_script(
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.js',
 			array( 'jquery' ),
-			'1.2',
+			'1.3',
 			true
 		);
 
@@ -198,6 +198,114 @@ class AdminDashboard {
 		$html .= '</div>';
 
 		return $html;
+	}
+
+	/**
+	 * Markup mirroring agent frontend “Customers by Country” (grouped pills + table).
+	 *
+	 * @param array $customers Customer rows from DB.
+	 * @param array $img_map   Extra image URLs by customer id, keyed by customer id.
+	 * @return string
+	 */
+	private function render_agent_modal_customers_frontend_layout( array $customers, array $img_map ) {
+		ob_start();
+
+		if ( empty( $customers ) ) {
+			?>
+			<div class="amg-fe-mirror tab-content active">
+				<h3><?php esc_html_e( 'Customers by Country', 'agent-management' ); ?></h3>
+				<p class="country-empty-state" style="padding: 24px; text-align: center; margin: 0;"><?php esc_html_e( 'No customers for this agent.', 'agent-management' ); ?></p>
+			</div>
+			<?php
+			return ob_get_clean();
+		}
+
+		$by_country = array();
+		foreach ( $customers as $cust ) {
+			$label = isset( $cust->visa_country ) && '' !== trim( (string) $cust->visa_country )
+				? $cust->visa_country
+				: __( '(No country)', 'agent-management' );
+			if ( ! isset( $by_country[ $label ] ) ) {
+				$by_country[ $label ] = array();
+			}
+			$by_country[ $label ][] = $cust;
+		}
+		uksort( $by_country, 'strnatcasecmp' );
+
+		$pill_keys = array_keys( $by_country );
+		?>
+		<div class="amg-fe-mirror tab-content active">
+			<h3><?php esc_html_e( 'Customers by Country', 'agent-management' ); ?></h3>
+			<div id="amg-admin-country-tab-content">
+				<div class="country-filter-list">
+					<?php foreach ( $pill_keys as $idx => $country_label ) : ?>
+						<button type="button" class="country-pill<?php echo 0 === $idx ? ' active' : ''; ?>" data-country="<?php echo esc_attr( $country_label ); ?>">
+							<?php echo esc_html( $country_label ); ?>
+							<span class="pill-count"><?php echo (int) count( $by_country[ $country_label ] ); ?></span>
+						</button>
+					<?php endforeach; ?>
+				</div>
+				<div id="amg-admin-country-customers-wrap">
+					<?php foreach ( $pill_keys as $idx => $country_label ) : ?>
+						<?php
+						$list     = $by_country[ $country_label ];
+						$is_first = ( 0 === $idx );
+						?>
+						<div class="amg-country-panel tab-country-panel" data-country-panel="<?php echo esc_attr( $country_label ); ?>" <?php echo $is_first ? '' : 'hidden'; ?>>
+							<div class="country-customers-section">
+								<h4>
+									<?php esc_html_e( 'Customers in', 'agent-management' ); ?>
+									<span class="country-badge"><?php echo esc_html( $country_label ); ?></span>
+									— <?php echo (int) count( $list ); ?> <?php esc_html_e( 'total', 'agent-management' ); ?>
+								</h4>
+								<div class="customer-table-container">
+									<table class="customer-table">
+										<thead>
+											<tr>
+												<th><?php esc_html_e( 'Name', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Passport No.', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Visa Type', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
+											</tr>
+										</thead>
+										<tbody>
+											<?php foreach ( $list as $row ) : ?>
+												<?php
+												$extras = isset( $img_map[ (int) $row->id ] ) ? $img_map[ (int) $row->id ] : array();
+												$status = strtolower( sanitize_text_field( (string) $row->status ) );
+												if ( ! in_array( $status, array( 'pending', 'approved', 'rejected' ), true ) ) {
+													$status = 'pending';
+												}
+												$badge_class = 'status-' . $status;
+												?>
+												<tr>
+													<td><?php echo esc_html( $row->customer_name ); ?></td>
+													<td><?php echo esc_html( $row->customer_phone ); ?></td>
+													<td><?php echo esc_html( $row->passport_number ); ?></td>
+													<td><?php echo esc_html( $row->visa_type ); ?></td>
+													<td><?php echo esc_html( $row->submission_date ); ?></td>
+													<td><span class="<?php echo esc_attr( $badge_class ); ?>"><?php echo esc_html( ucfirst( $status ) ); ?></span></td>
+													<td>
+														<div class="customer-images amg-fe-images">
+															<?php echo $this->render_customer_images_cell( $row->passport_image, $extras ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+														</div>
+													</td>
+												</tr>
+											<?php endforeach; ?>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		</div>
+		<?php
+		return ob_get_clean();
 	}
 
 	/**
@@ -542,43 +650,7 @@ class AdminDashboard {
 		$cids    = wp_list_pluck( $customers, 'id' );
 		$img_map = $this->get_additional_images_map( $cids );
 
-		ob_start();
-		?>
-		<table class="amg-table amg-table--compact">
-			<thead>
-				<tr>
-					<th><?php esc_html_e( 'Customer Name', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Passport', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Country', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Submission', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php if ( empty( $customers ) ) : ?>
-					<tr><td colspan="7"><?php esc_html_e( 'No customers for this agent.', 'agent-management' ); ?></td></tr>
-				<?php else : ?>
-					<?php foreach ( $customers as $cust ) : ?>
-						<?php
-						$extras = isset( $img_map[ (int) $cust->id ] ) ? $img_map[ (int) $cust->id ] : array();
-						?>
-						<tr>
-							<td><?php echo esc_html( $cust->customer_name ); ?></td>
-							<td><?php echo esc_html( $cust->customer_phone ); ?></td>
-							<td><?php echo esc_html( $cust->passport_number ); ?></td>
-							<td><?php echo esc_html( $cust->visa_country ); ?></td>
-							<td><?php echo esc_html( $cust->submission_date ); ?></td>
-							<td><?php echo $this->render_customer_images_cell( $cust->passport_image, $extras ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
-							<td><span class="status-<?php echo esc_attr( $cust->status ); ?>"><?php echo esc_html( $cust->status ); ?></span></td>
-						</tr>
-					<?php endforeach; ?>
-				<?php endif; ?>
-			</tbody>
-		</table>
-		<?php
-		$html = ob_get_clean();
+		$html = $this->render_agent_modal_customers_frontend_layout( $customers, $img_map );
 
 		wp_send_json_success( array( 'html' => $html ) );
 	}

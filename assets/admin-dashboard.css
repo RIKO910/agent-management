@@ -432,7 +432,7 @@ body.amg-agent-management-page .wrap.amg-shell {
     background: var(--amm-surface, #fff);
     border-radius: var(--radius-lg, 16px);
     box-shadow: 0 22px 60px rgba(0, 0, 0, 0.2);
-    max-width: min(920px, 100%);
+    max-width: min(1100px, 100%);
     width: 100%;
     max-height: 85vh;
     display: flex;
@@ -536,6 +536,281 @@ body.amg-agent-management-page .wrap.amg-shell {
     font-size: 0.8125rem;
     margin-top: 14px;
     max-width: 90vw;
+}
+
+/* ── Frontend “Customers by Country” mirror (admin agent modal only) ── */
+.amg-fe-mirror {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --border-2: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #4f46e5;
+    --accent-bg: #eef2ff;
+    --success: #059669;
+    --success-bg: #d1fae5;
+    --warning: #d97706;
+    --warning-bg: #fef3c7;
+    --danger: #dc2626;
+    --danger-bg: #fee2e2;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --font: 'DM Sans', system-ui, sans-serif;
+
+    font-family: var(--font);
+    color: var(--text-primary);
+    max-width: 100%;
+}
+
+.amg-fe-mirror.tab-content {
+    display: block;
+    animation: amg-fe-fade-up 0.28s ease;
+}
+
+@keyframes amg-fe-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.amg-fe-mirror > h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin: 0 0 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+.amg-modal-body .amg-fe-mirror #amg-admin-country-tab-content {
+    min-height: 120px;
+}
+
+.amg-fe-mirror .country-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.amg-fe-mirror .country-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    background: var(--surface-2);
+    border: 1.5px solid var(--border);
+    border-radius: 99px;
+    font-family: var(--font);
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.amg-fe-mirror .country-pill .pill-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    background: var(--border);
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.amg-fe-mirror .country-pill.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
+}
+
+.amg-fe-mirror .country-pill.active .pill-count {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.amg-fe-mirror .country-pill:hover:not(.active) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-bg);
+}
+
+.amg-fe-mirror .amg-country-panel[hidden] {
+    display: none !important;
+}
+
+.amg-fe-mirror .amg-country-panel:not([hidden]) {
+    display: block;
+}
+
+.amg-fe-mirror .country-customers-section {
+    animation: amg-fe-fade-up 0.22s ease;
+}
+
+.amg-fe-mirror .country-customers-section h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    line-height: 1.4;
+}
+
+.amg-fe-mirror .country-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.amg-fe-mirror .customer-table-container {
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+    overflow-y: visible;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
+
+.amg-fe-mirror .customer-table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.amg-fe-mirror .customer-table thead th {
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.amg-fe-mirror .customer-table tbody td {
+    padding: 12px 14px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.amg-fe-mirror .customer-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.amg-fe-mirror .customer-table tbody tr:hover {
+    background: #fafbff;
+}
+
+/* Status pills (frontend match) */
+.amg-fe-mirror .status-pending,
+.amg-fe-mirror .status-approved,
+.amg-fe-mirror .status-rejected {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.amg-fe-mirror .status-pending {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.amg-fe-mirror .status-approved {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.amg-fe-mirror .status-rejected {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.amg-fe-mirror .status-pending::before,
+.amg-fe-mirror .status-approved::before,
+.amg-fe-mirror .status-rejected::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.amg-fe-mirror .status-pending::before {
+    background: var(--warning);
+}
+
+.amg-fe-mirror .status-approved::before {
+    background: var(--success);
+}
+
+.amg-fe-mirror .status-rejected::before {
+    background: var(--danger);
+}
+
+/* Images column: thumbnails + admin lightbox */
+.amg-fe-mirror .customer-images.amg-fe-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.amg-fe-mirror .customer-images.amg-fe-images .amg-thumb-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.amg-fe-mirror .customer-images.amg-fe-images .amg-thumb img {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    transition: var(--transition);
+}
+
+.amg-fe-mirror .customer-images.amg-fe-images .amg-thumb:hover img {
+    border-color: var(--accent);
+    transform: scale(1.06);
+    box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 782px) {
