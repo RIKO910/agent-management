@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
 class AgentDatabase {
 
     public static function create_tables() {
@@ -13,7 +14,7 @@ class AgentDatabase {
         // Agents table
         $agents_table = $wpdb->prefix . 'agents';
         $customers_table = $wpdb->prefix . 'agent_customers';
-        $customer_images_table = $wpdb->prefix . 'agent_customer_images'; // New table for images
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
         $sql_agents = "CREATE TABLE $agents_table (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
@@ -31,10 +32,10 @@ class AgentDatabase {
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         agent_id mediumint(9) NOT NULL,
         customer_name varchar(100) NOT NULL,
-        customer_phone varchar(20) NOT NULL,
+        customer_phone varchar(100) NOT NULL,
         passport_number varchar(50) NOT NULL,
         passport_image varchar(255) NOT NULL,
-        visa_country varchar(50) NOT NULL,
+        visa_country varchar(100) NOT NULL,
         visa_type varchar(50) NOT NULL,
         submission_date date NOT NULL,
         status varchar(20) DEFAULT 'pending',

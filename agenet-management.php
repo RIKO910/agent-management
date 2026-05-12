@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Agent Management System
  * Description: Agent management with customer information tracking
- * Version: 1.0
+ * Version: 1.1
  * Author: Your Name
  */
 
@@ -54,7 +54,7 @@ class AgentManagementSystem {
     }
 
     public function init() {
-        $this->create_agent_role(); // Ensure role exists
+        $this->create_agent_role();
 
         new AgentAuth();
         new AgentDashboard();

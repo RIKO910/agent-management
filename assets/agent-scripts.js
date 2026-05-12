@@ -1,169 +1,155 @@
-jQuery(document).ready(function($) {
-    let currentPage = 1;
-    let isLoading = false;
-    let hasMore = true;
-    let totalPages = 1;
+/* global agent_dashboard_ajax, jQuery */
+jQuery(document).ready(function ($) {
 
-    // Login form handling
-    $('#agentLoginForm').on('submit', function(e) {
+    /* ================================================================
+       STATE
+    ================================================================ */
+    let currentPage   = 1;
+    let isLoading     = false;
+    let hasMore       = true;
+    let totalPages    = 1;
+    let searchTimer   = null;
+    let currentSearch = '';
+
+    let countryPage   = 1;
+    let countryTotalPages = 1;
+    let currentCountry    = '';
+    let countryLoading    = false;
+
+    /* ================================================================
+       LOGIN
+    ================================================================ */
+    $('#agentLoginForm').on('submit', function (e) {
         e.preventDefault();
+        const btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true).html('<span class="loading-spinner"></span> Signing in…');
 
-        const submitButton = $(this).find('button[type="submit"]');
-        submitButton.prop('disabled', true).html('Continue...');
-
-        let formData = {
-            action: 'agent_login',
-            nonce: agent_dashboard_ajax.nonce,
+        $.post(agent_dashboard_ajax.ajaxurl, {
+            action:   'agent_login',
+            nonce:    agent_dashboard_ajax.nonce,
             username: $('input[name="login_username"]').val(),
             password: $('input[name="login_password"]').val()
-        };
-
-        // Send AJAX request
-        $.post(agent_dashboard_ajax.ajaxurl, formData, function(response) {
-            if (response.success) {
-                $('#loginMessage').html('<div class="success">' + response.data + '</div>');
-                // Redirect after successful login
-                setTimeout(function() {
-                    window.location.reload();
-                }, 1000);
+        }, function (res) {
+            if (res.success) {
+                $('#loginMessage').html('<div class="success">✓ ' + res.data + ' — Redirecting…</div>');
+                setTimeout(() => window.location.reload(), 1000);
             } else {
-                $('#loginMessage').html('<div class="error">' + response.data + '</div>');
-                submitButton.prop('disabled', false).html('Login');
+                $('#loginMessage').html('<div class="error">✕ ' + res.data + '</div>');
+                btn.prop('disabled', false).text('Sign In');
             }
-        }).fail(function() {
+        }).fail(function () {
             $('#loginMessage').html('<div class="error">Login failed. Please try again.</div>');
-            submitButton.prop('disabled', false).html('Login');
+            btn.prop('disabled', false).text('Sign In');
         });
     });
 
-    // Signup form handling
-    $('#agent-create-submit').on('click', function(e) {
+    /* ================================================================
+       SIGNUP
+    ================================================================ */
+    $('#agent-create-submit').on('click', function (e) {
         e.preventDefault();
+        const btn = $(this);
+        const password = $('input[name="sign_password"]').val();
+        const confirm  = $('input[name="sign_confirm_password"]').val();
 
-        const submitButton = $(this);
-        submitButton.prop('disabled', true).html('Continue...');
-
-        // Simple password check before request
-        let password = $('input[name="sign_password"]').val();
-        let confirmPassword = $('input[name="sign_confirm_password"]').val();
-
-        if (password !== confirmPassword) {
-            $('#signupMessage').html('<div class="error">Passwords do not match.</div>');
-            return;
+        if (password !== confirm) {
+            $('#signupMessage').html('<div class="error">Passwords do not match.</div>'); return;
         }
-
         if (password.length < 6) {
-            $('#signupMessage').html('<div class="error">Password must be at least 6 characters long.</div>');
-            return;
+            $('#signupMessage').html('<div class="error">Password must be at least 6 characters.</div>'); return;
         }
 
-        // Collect form data
-        let formData = {
-            action: 'agent_signup',
-            nonce: agent_dashboard_ajax.nonce,
-            company_name: $('input[name="sign_company_name"]').val(),
-            username: $('input[name="sign_username"]').val(),
-            email: $('input[name="sign_email"]').val(),
-            phone: $('input[name="sign_phone"]').val(),
-            address: $('textarea[name="sign_address"]').val(),
-            license_number: $('input[name="sign_license_number"]').val(),
-            password: password,
-            confirm_password: confirmPassword
-        };
+        btn.prop('disabled', true).html('<span class="loading-spinner"></span> Creating account…');
 
-        // Send AJAX request
-        $.post(agent_dashboard_ajax.ajaxurl, formData, function(response) {
-            if (response.success) {
-                $('#signupMessage').html('<div class="success">' + response.data + '</div>');
+        $.post(agent_dashboard_ajax.ajaxurl, {
+            action:         'agent_signup',
+            nonce:          agent_dashboard_ajax.nonce,
+            company_name:   $('input[name="sign_company_name"]').val(),
+            username:       $('input[name="sign_username"]').val(),
+            email:          $('input[name="sign_email"]').val(),
+            phone:          $('input[name="sign_phone"]').val(),
+            address:        $('textarea[name="sign_address"]').val(),
+            license_number: $('input[name="sign_license_number"]').val(),
+            password,
+            confirm_password: confirm
+        }, function (res) {
+            if (res.success) {
+                $('#signupMessage').html('<div class="success">✓ ' + res.data + '</div>');
                 $('#agentSignupForm')[0].reset();
-                // Optionally switch back to login form
-                setTimeout(function() {
-                    showLogin();
-                    submitButton.prop('disabled', false).html('Sign Up');
-                }, 2000);
+                setTimeout(() => { showLogin(); btn.prop('disabled', false).text('Create Account'); }, 2200);
             } else {
-                $('#signupMessage').html('<div class="error">' + response.data + '</div>');
-                submitButton.prop('disabled', false).html('Sign Up');
+                $('#signupMessage').html('<div class="error">✕ ' + res.data + '</div>');
+                btn.prop('disabled', false).text('Create Account');
             }
-        }).fail(function() {
+        }).fail(function () {
             $('#signupMessage').html('<div class="error">Registration failed. Please try again.</div>');
-            submitButton.prop('disabled', false).html('Sign Up');
+            btn.prop('disabled', false).text('Create Account');
         });
     });
 
-    // Tab functionality
-    $('.tab-button').click(function() {
+    /* ================================================================
+       TABS
+    ================================================================ */
+    $('.tab-button').on('click', function () {
         $('.tab-button').removeClass('active');
         $('.tab-content').removeClass('active');
-
         $(this).addClass('active');
         $('#' + $(this).data('tab')).addClass('active');
 
-        // Refresh customer list when switching to that tab
-        if ($(this).data('tab') === 'customer-list') {
+        const tab = $(this).data('tab');
+        if (tab === 'customer-list') {
             resetPagination();
             loadCustomerList();
+        } else if (tab === 'customer-countries') {
+            loadCountryTab();
         }
     });
 
-    // Initialize lightbox
-    if (typeof $.prettyPhoto !== 'undefined') {
-        $('a[rel^="prettyPhoto"]').prettyPhoto({
-            social_tools: false,
-            theme: 'pp_woocommerce',
-            horizontal_padding: 20,
-            opacity: 0.8,
-            deeplinking: false
-        });
-    }
+    /* ================================================================
+       FILE SIZE VALIDATION
+    ================================================================ */
+    $(document).on('change', 'input[type="file"]', function () {
+        const file = this.files[0];
+        if (file && file.size > 5 * 1024 * 1024) {
+            alert('File size must be less than 5 MB.');
+            $(this).val('');
+        }
+    });
 
-    // Add multiple image fields
-    $('#add-image-btn').click(function() {
+    /* ================================================================
+       ADD / REMOVE ADDITIONAL IMAGES
+    ================================================================ */
+    $('#add-image-btn').on('click', function () {
         $('.multiple-image-upload-section').append(
-            '<div class="additional-image-field form-group">' +
+            '<div class="additional-image-field">' +
+            '<div class="form-group" style="flex:1;margin:0;">' +
             '<label>Additional Image</label>' +
             '<input type="file" name="additional_images[]" accept="image/*">' +
+            '</div>' +
             '<button type="button" class="remove-image-btn">Remove</button>' +
             '</div>'
         );
     });
-
-    // Remove image fields
-    $(document).on('click', '.remove-image-btn', function() {
+    $(document).on('click', '.remove-image-btn', function () {
         $(this).closest('.additional-image-field').remove();
     });
 
-    $(document).on('change', 'input[type="file"]', function() {
-        var file = this.files[0];
-        if (file) {
-            var maxSize = 5 * 1024 * 1024; // 5MB in bytes
-            if (file.size > maxSize) {
-                alert('File size must be less than 5MB');
-                $(this).val('');
-            }
-        }
-    });
-
-    $('#customerForm').submit(function(e) {
+    /* ================================================================
+       CUSTOMER FORM SUBMIT (add + update)
+    ================================================================ */
+    $('#customerForm').on('submit', function (e) {
         e.preventDefault();
-
-        var formData = new FormData(this);
-
-        // Get submit button and store original text
-        const submitButton = $('#customerForm button[type="submit"]');
-        const originalText = submitButton.text();
-
-        // Disable submit button and show loading state
-        submitButton.prop('disabled', true).html('<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="loading-spinner"></span>Submitting...</span>');
-
-        // Check if we're updating an existing customer
+        const formData   = new FormData(this);
+        const submitBtn  = $('#customerForm button[type="submit"]');
         const customerId = $('#customer_id_hidden').val();
+
         if (customerId) {
             formData.append('action', 'update_customer');
             formData.append('customer_id', customerId);
-            submitButton.html('<span style="display: inline-flex; align-items: center; gap: 8px;"><span class="loading-spinner"></span>Updating...</span>');
+            submitBtn.prop('disabled', true).html('<span class="loading-spinner"></span> Updating…');
         } else {
             formData.append('action', 'submit_customer_form');
+            submitBtn.prop('disabled', true).html('<span class="loading-spinner"></span> Submitting…');
         }
 
         $.ajax({
@@ -172,486 +158,512 @@ jQuery(document).ready(function($) {
             data: formData,
             processData: false,
             contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    $('#formMessage').html('<div class="success">' + response.data + '</div>');
+            success: function (res) {
+                if (res.success) {
+                    $('#formMessage').html('<div class="success">✓ ' + res.data + '</div>');
                     $('#customerForm')[0].reset();
-                    $('.additional-image-field').remove();
-                    $('#customer_id_hidden').remove();
-                    $('.passport-image-preview').remove();
-                    $('.new-passport-preview').remove();
-                    $('.additional-images-preview').remove();
-                    $('.additional-image-preview').remove();
-
-                    // Reset form mode
-                    if (typeof updateFormMode === 'function') {
-                        updateFormMode(false);
-                    }
-
-                    submitButton.text('Submit Customer Information');
-
-                    // Refresh customer list
+                    clearEditState();
                     resetPagination();
-                    if (typeof loadCustomerList === 'function') {
-                        loadCustomerList();
-                    }
-
-                    // Auto-hide success message after 5 seconds
-                    setTimeout(function() {
-                        $('#formMessage').fadeOut(300, function() {
-                            $(this).empty().show();
-                        });
-                    }, 5000);
+                    loadCustomerList();
+                    autoHideMessage('#formMessage');
                 } else {
-                    $('#formMessage').html('<div class="error">' + response.data + '</div>');
+                    $('#formMessage').html('<div class="error">✕ ' + res.data + '</div>');
                 }
             },
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
+            error: function () {
                 $('#formMessage').html('<div class="error">An error occurred. Please try again.</div>');
             },
-            complete: function() {
-                // Re-enable button with original or default text
-                const isEditMode = $('#customer_id_hidden').length > 0;
-                const buttonText = isEditMode ? 'Update Customer Information' : 'Submit Customer Information';
-                submitButton.prop('disabled', false).text(buttonText);
+            complete: function () {
+                const editMode = $('#customer_id_hidden').length > 0;
+                submitBtn.prop('disabled', false).text(editMode ? 'Update Customer' : 'Submit Customer');
             }
         });
     });
 
+    function clearEditState() {
+        $('#customer_id_hidden').remove();
+        $('.passport-image-preview, .new-passport-preview, .additional-images-preview, .additional-image-preview').remove();
+        $('input[name="passport_image"]').attr('required', true);
+        $('#customerForm button[type="submit"]').text('Submit Customer');
+        $('#cancel-edit-btn').hide();
+        $('.additional-image-field').remove();
+    }
 
-    // Add some interactive effects
-    $('.form-group input, .form-group select, .form-group textarea').on('focus', function() {
-        $(this).parent().addClass('focused');
-    }).on('blur', function() {
-        $(this).parent().removeClass('focused');
-    });
-
-    // Auto-hide messages after 5 seconds
-    $(document).on('click', '#formMessage .success, #formMessage .error', function() {
-        $(this).fadeOut(300);
-    });
-
-    setTimeout(function() {
-        $('#formMessage .success, #formMessage .error').fadeOut(300);
-    }, 5000);
-
-    // Add animation to table rows
-    $(document).on('mouseenter', '.customer-table tbody tr', function() {
-        $(this).css('transform', 'scale(1.02)');
-    }).on('mouseleave', '.customer-table tbody tr', function() {
-        $(this).css('transform', 'scale(1)');
-    });
-
-    $(document).on('click', '.delete-customer-btn', function() {
-        if (!confirm('Are you sure you want to delete this customer?')) {
-            return;
+    /* ================================================================
+       CANCEL EDIT
+    ================================================================ */
+    $(document).on('click', '#cancel-edit-btn', function () {
+        if (confirm('Cancel editing? Unsaved changes will be lost.')) {
+            $('#customerForm')[0].reset();
+            clearEditState();
+            $('#formMessage').empty();
         }
+    });
 
+    /* ================================================================
+       DELETE CUSTOMER
+    ================================================================ */
+    $(document).on('click', '.delete-customer-btn', function () {
+        if (!confirm('Delete this customer? This cannot be undone.')) return;
         const customerId = $(this).data('customer-id');
         const $row = $(this).closest('tr');
 
         $.ajax({
             url: agent_dashboard_ajax.ajaxurl,
             type: 'POST',
-            data: {
-                action: 'delete_customer',
-                customer_id: customerId,
-                nonce: agent_dashboard_ajax.nonce
-            },
-            beforeSend: function() {
-                $row.css('opacity', '0.5');
-            },
-            success: function(response) {
-                if (response.success) {
-                    $row.fadeOut(300, function() {
-                        $(this).remove();
-                        // Reload the current page to update counts
-                        loadCustomerList();
-                    });
-                    alert('Customer deleted successfully');
+            data: { action: 'delete_customer', customer_id: customerId, nonce: agent_dashboard_ajax.nonce },
+            beforeSend () { $row.css('opacity', '.4'); },
+            success (res) {
+                if (res.success) {
+                    $row.fadeOut(250, function () { $(this).remove(); loadCustomerList(); });
                 } else {
-                    alert('Error: ' + response.data);
-                    $row.css('opacity', '1');
+                    alert('Error: ' + res.data); $row.css('opacity', '1');
                 }
             },
-            error: function() {
-                alert('Failed to delete customer. Please try again.');
-                $row.css('opacity', '1');
-            }
+            error () { alert('Failed to delete. Please try again.'); $row.css('opacity', '1'); }
         });
     });
 
-    // Edit customer handler
-    $(document).on('click', '.edit-customer-btn', function() {
+    /* ================================================================
+       EDIT CUSTOMER
+    ================================================================ */
+    $(document).on('click', '.edit-customer-btn', function () {
         const customerId = $(this).data('customer-id');
-        const editButton = $(this);
+        const btn = $(this);
+        btn.prop('disabled', true).text('Loading…');
 
-        // Store original text
-        const originalText = editButton.text();
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: { action: 'get_customer_details', customer_id: customerId, nonce: agent_dashboard_ajax.nonce },
+            success (res) {
+                if (res.success) {
+                    populateEditForm(res.data);
+                    $('.tab-button[data-tab="customer-form"]').trigger('click');
+                } else {
+                    alert('Error: ' + res.data);
+                }
+            },
+            error () { alert('Failed to load customer details.'); },
+            complete () { btn.prop('disabled', false).text('Edit'); }
+        });
+    });
 
-        // Disable button and show loading state
-        editButton.prop('disabled', true).html('Loading...');
+    /* ================================================================
+       PAGINATION BUTTONS
+    ================================================================ */
+    $(document).on('click', '.pagination-btn', function () {
+        if ($(this).hasClass('disabled') || isLoading) return;
+        const action = $(this).data('action');
+        if (action === 'prev' && currentPage > 1)         { currentPage--; loadCustomerList(); }
+        else if (action === 'next' && currentPage < totalPages) { currentPage++; loadCustomerList(); }
+    });
+
+    /* ================================================================
+       SEARCH (debounced)
+    ================================================================ */
+    $(document).on('input', '#customer-search-input', function () {
+        clearTimeout(searchTimer);
+        const q = $(this).val().trim();
+        searchTimer = setTimeout(function () {
+            currentSearch = q;
+            resetPagination();
+            loadCustomerList();
+        }, 400);
+    });
+
+    $(document).on('click', '#search-clear-btn', function () {
+        $('#customer-search-input').val('');
+        currentSearch = '';
+        resetPagination();
+        loadCustomerList();
+    });
+
+    /* ================================================================
+       DELETE ADDITIONAL IMAGE
+    ================================================================ */
+    $(document).on('click', '.delete-additional-image', function () {
+        if (!confirm('Delete this image?')) return;
+        const imageId  = $(this).data('image-id');
+        const $item    = $(this).closest('.preview-image-item');
+
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: { action: 'delete_customer_image', image_id: imageId, nonce: agent_dashboard_ajax.nonce },
+            beforeSend () { $item.css('opacity', '.4'); },
+            success (res) {
+                if (res.success) {
+                    $item.fadeOut(250, function () {
+                        $(this).remove();
+                        if ($('.preview-image-item').length === 0) $('.additional-images-preview').remove();
+                    });
+                } else {
+                    alert('Error: ' + res.data); $item.css('opacity', '1');
+                }
+            },
+            error () { alert('Failed to delete image.'); $item.css('opacity', '1'); }
+        });
+    });
+
+    /* ================================================================
+       PASSPORT IMAGE PREVIEW
+    ================================================================ */
+    $(document).on('change', 'input[name="passport_image"]', function () {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+            $('.new-passport-preview').remove();
+            $('input[name="passport_image"]').parent().append(
+                '<div class="new-passport-preview">' +
+                '<p>New Passport Image Preview:</p>' +
+                '<img src="' + ev.target.result + '">' +
+                '</div>'
+            );
+        };
+        reader.readAsDataURL(file);
+    });
+
+    /* ================================================================
+       ADDITIONAL IMAGE PREVIEW
+    ================================================================ */
+    $(document).on('change', 'input[name="additional_images[]"]', function () {
+        const file = this.files[0];
+        const $parent = $(this).closest('.additional-image-field');
+        $parent.find('.additional-image-preview').remove();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            $parent.append(
+                '<div class="additional-image-preview" style="margin-top:8px;">' +
+                '<img src="' + ev.target.result + '" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius-sm);border:2px solid #4ade80;">' +
+                '</div>'
+            );
+        };
+        reader.readAsDataURL(file);
+    });
+
+    /* ================================================================
+       FORM RESET
+    ================================================================ */
+    $('#customerForm').on('reset', function () { clearEditState(); $('#formMessage').empty(); });
+
+    /* ================================================================
+       COUNTRY TAB — initial load
+    ================================================================ */
+    function loadCountryTab() {
+        const $wrap = $('#country-tab-content');
+        $wrap.html('<div style="text-align:center;padding:40px;"><div class="loading-spinner-large"></div></div>');
+
+        $.ajax({
+            url: agent_dashboard_ajax.ajaxurl,
+            type: 'POST',
+            data: { action: 'get_customer_countries', nonce: agent_dashboard_ajax.nonce },
+            success (res) {
+                if (res.success) renderCountryTab(res.data);
+                else $wrap.html('<p style="color:var(--text-muted)">Failed to load countries.</p>');
+            },
+            error () { $wrap.html('<p style="color:var(--text-muted)">Network error.</p>'); }
+        });
+    }
+
+    function renderCountryTab(data) {
+        const countries = data.countries || [];
+        const $wrap = $('#country-tab-content');
+
+        if (countries.length === 0) {
+            $wrap.html(
+                '<div class="country-empty-state">' +
+                '<svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 0v20M2 12h20"/></svg>' +
+                '<p>No customers added yet.</p>' +
+                '</div>'
+            );
+            return;
+        }
+
+        // Build pills
+        let pillsHTML = '<div class="country-filter-list">';
+        countries.forEach((c, i) => {
+            pillsHTML +=
+                '<button class="country-pill' + (i === 0 ? ' active' : '') + '" data-country="' + escHtml(c.country) + '">' +
+                escHtml(c.country) +
+                '<span class="pill-count">' + c.count + '</span>' +
+                '</button>';
+        });
+        pillsHTML += '</div>';
+
+        $wrap.html(pillsHTML + '<div id="country-customers-wrap"></div>');
+
+        // Load first country
+        if (countries.length > 0) loadCountryCustomers(countries[0].country);
+    }
+
+    // Click on country pill
+    $(document).on('click', '.country-pill', function () {
+        if ($(this).hasClass('active')) return;
+        $('.country-pill').removeClass('active');
+        $(this).addClass('active');
+        countryPage = 1;
+        loadCountryCustomers($(this).data('country'));
+    });
+
+    // Country pagination
+    $(document).on('click', '.country-pagination-btn', function () {
+        if ($(this).hasClass('disabled') || countryLoading) return;
+        const action = $(this).data('action');
+        if (action === 'prev' && countryPage > 1)                   { countryPage--; loadCountryCustomers(currentCountry); }
+        else if (action === 'next' && countryPage < countryTotalPages) { countryPage++; loadCountryCustomers(currentCountry); }
+    });
+
+    function loadCountryCustomers(country) {
+        if (countryLoading) return;
+        currentCountry = country;
+        countryLoading = true;
+        const $wrap = $('#country-customers-wrap');
+        $wrap.html('<div style="text-align:center;padding:30px;"><div class="loading-spinner-large"></div></div>');
 
         $.ajax({
             url: agent_dashboard_ajax.ajaxurl,
             type: 'POST',
             data: {
-                action: 'get_customer_details',
-                customer_id: customerId,
-                nonce: agent_dashboard_ajax.nonce
+                action:   'get_customers_by_country',
+                country,
+                page:     countryPage,
+                per_page: 10,
+                nonce:    agent_dashboard_ajax.nonce
             },
-            success: function(response) {
-                if (response.success) {
-                    console.log(response.data);
-                    populateEditForm(response.data);
-                    // Switch to customer form tab
-                    $('.tab-button[data-tab="customer-form"]').click();
+            success (res) {
+                countryLoading = false;
+                if (res.success) {
+                    countryTotalPages = res.data.total_pages || 1;
+                    renderCountryCustomers(res.data, country);
                 } else {
-                    alert('Error: ' + response.data);
+                    $wrap.html('<p style="color:var(--text-muted)">Failed to load customers.</p>');
                 }
             },
-            error: function() {
-                alert('Failed to load customer details. Please try again.');
-            },
-            complete: function() {
-                // Re-enable button and restore original text
-                editButton.prop('disabled', false).html(originalText);
+            error () {
+                countryLoading = false;
+                $wrap.html('<p style="color:var(--text-muted)">Network error.</p>');
             }
         });
-    });
+    }
 
-});
+    function renderCountryCustomers(data, country) {
+        const $wrap = $('#country-customers-wrap');
+        const total = data.total || 0;
 
-function resetPagination() {
-    currentPage = 1;
-    isLoading = false;
-    hasMore = true;
-    totalPages = 1;
-    jQuery('.customer-table tbody').empty();
-    jQuery('.pagination-container').remove();
-}
+        let html =
+            '<div class="country-customers-section">' +
+            '<h4>Customers in <span class="country-badge">' + escHtml(country) + '</span> — ' + total + ' total</h4>';
 
-function loadCustomerList() {
-    if (isLoading) return;
+        if (data.html) {
+            html +=
+                '<div class="customer-table-container">' +
+                '<table class="customer-table">' +
+                '<thead><tr>' +
+                '<th>Name</th><th>Phone</th><th>Passport No.</th>' +
+                '<th>Visa Type</th><th>Submission Date</th><th>Status</th><th>Images</th><th>Actions</th>' +
+                '</tr></thead>' +
+                '<tbody>' + data.html + '</tbody>' +
+                '</table>' +
+                '</div>';
+        } else {
+            html +=
+                '<div class="country-empty-state">' +
+                '<svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' +
+                '<p>No customers found in ' + escHtml(country) + '.</p>' +
+                '</div>';
+        }
 
-    isLoading = true;
+        // Country pagination
+        if (countryTotalPages > 1) {
+            html +=
+                '<div class="pagination-container" style="margin-top:16px;">' +
+                '<div class="pagination-info">Page ' + countryPage + ' of ' + countryTotalPages + ' (' + total + ' customers)</div>' +
+                '<div class="pagination-buttons">' +
+                '<button class="country-pagination-btn pagination-btn ' + (countryPage <= 1 ? 'disabled' : '') + '" data-action="prev">← Previous</button>' +
+                '<button class="country-pagination-btn pagination-btn ' + (countryPage >= countryTotalPages ? 'disabled' : '') + '" data-action="next">Next →</button>' +
+                '</div>' +
+                '</div>';
+        }
 
-    // Show loading with fade effect
-    const $tbody = jQuery('.customer-table tbody');
-    const $tableContainer = jQuery('.customer-table-container');
+        html += '</div>';
+        $wrap.html(html);
+        initializeLightbox();
+    }
 
-    // Fade out existing content
-    $tbody.fadeOut(200, function() {
-        // Add loading spinner
-        $tbody.html(
-            '<tr id="temp-loading"><td colspan="7" style="text-align: center; padding: 40px;">' +
-            '<div class="loading-spinner-large"></div>' +
-            '<p style="margin-top: 10px; color: #666;">Loading your customers...</p>' +
-            '</td></tr>'
-        ).fadeIn(200);
+    /* ================================================================
+       HELPERS
+    ================================================================ */
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
 
-        // Remove existing pagination
-        jQuery('.pagination-container').remove();
+    function autoHideMessage(selector) {
+        setTimeout(function () {
+            $(selector).fadeOut(300, function () { $(this).empty().show(); });
+        }, 5000);
+    }
 
-        // Make AJAX call - FIXED: Using the correct action
-        jQuery.ajax({
-            url: agent_dashboard_ajax.ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'get_customer_list_paginated', // FIXED ACTION NAME
-                page: currentPage,
-                per_page: 5,
-                nonce: agent_dashboard_ajax.nonce
-            },
-            success: function(response) {
-                isLoading = false;
+    function initializeLightbox() {
+        if (typeof $.fn.prettyPhoto !== 'undefined') {
+            $('a[rel^="prettyPhoto"]').prettyPhoto({
+                social_tools: false,
+                theme: 'pp_woocommerce',
+                horizontal_padding: 20,
+                opacity: 0.8,
+                deeplinking: false
+            });
+        }
+    }
 
-                if (response.success) {
-                    $tbody.fadeOut(200, function() {
-                        jQuery(this).html(response.data.html).fadeIn(300, function() {
-                            initializeLightbox();
-                            hasMore = response.data.has_more;
+    /* ================================================================
+       EXPOSED GLOBALS (used in PHP-generated onclick / other functions)
+    ================================================================ */
+    window.resetPagination = function () {
+        currentPage = 1; isLoading = false; hasMore = true; totalPages = 1;
+        $('.customer-table tbody').empty();
+        $('.pagination-container').remove();
+    };
 
-                            // Calculate total pages based on total count
-                            const totalCustomers = response.data.total || 0;
-                            totalPages = Math.ceil(totalCustomers / 5);
+    window.loadCustomerList = function () {
+        if (isLoading) return;
+        isLoading = true;
+        const $tbody = $('.customer-table tbody');
 
-                            // Add pagination controls
-                            addPaginationControls(totalCustomers);
+        $tbody.fadeOut(150, function () {
+            $tbody.html(
+                '<tr id="temp-loading"><td colspan="8" style="text-align:center;padding:40px;">' +
+                '<div class="loading-spinner-large"></div>' +
+                '<p style="margin-top:12px;color:var(--text-muted);">Loading customers…</p>' +
+                '</td></tr>'
+            ).fadeIn(150);
+            $('.pagination-container').remove();
+
+            $.ajax({
+                url: agent_dashboard_ajax.ajaxurl,
+                type: 'POST',
+                data: {
+                    action:   'get_customer_list_paginated',
+                    page:     currentPage,
+                    per_page: 10,
+                    search:   currentSearch,
+                    nonce:    agent_dashboard_ajax.nonce
+                },
+                success (res) {
+                    isLoading = false;
+                    if (res.success) {
+                        $tbody.fadeOut(150, function () {
+                            $(this).html(res.data.html).fadeIn(250, function () {
+                                initializeLightbox();
+                                hasMore   = res.data.has_more;
+                                const tot = res.data.total || 0;
+                                totalPages = Math.ceil(tot / 10);
+                                addPaginationControls(tot);
+                            });
                         });
-                    });
-                } else {
-                    showTableError('Failed to load customers.');
+                    } else {
+                        showTableError('Failed to load customers.');
+                    }
+                },
+                error () {
+                    isLoading = false;
+                    showTableError('Network error. Please try again.');
                 }
-            },
-            error: function(xhr, status, error) {
-                isLoading = false;
-                console.error('AJAX Error:', error);
-                showTableError('Network error. Please try again.');
-            }
+            });
         });
-    });
-}
+    };
 
-function addPaginationControls(totalCustomers) {
-    const $tableContainer = jQuery('.customer-table-container');
-
-    // Remove existing pagination
-    jQuery('.pagination-container').remove();
-
-    if (totalCustomers === 0) {
-        // Don't show pagination if no customers
-        return;
+    function addPaginationControls(total) {
+        $('.pagination-container').remove();
+        if (total === 0) return;
+        const html =
+            '<div class="pagination-container">' +
+            '<div class="pagination-info">Page ' + currentPage + ' of ' + totalPages + ' (' + total + ' customers)</div>' +
+            '<div class="pagination-buttons">' +
+            '<button class="pagination-btn ' + (currentPage <= 1 ? 'disabled' : '') + '" data-action="prev">← Previous</button>' +
+            '<button class="pagination-btn ' + (currentPage >= totalPages ? 'disabled' : '') + '" data-action="next">Next →</button>' +
+            '</div>' +
+            '</div>';
+        $('.customer-table-container').after(html);
     }
 
-    const paginationHTML = `
-        <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
-            <div class="pagination-info" style="color: #666; font-size: 14px;">
-                Showing page ${currentPage} of ${totalPages} (${totalCustomers} total customers)
-            </div>
-            <div class="pagination-buttons" style="display: flex; gap: 10px;">
-                <button class="pagination-btn ${currentPage === 1 ? 'disabled' : ''}" 
-                        data-action="prev" 
-                        style="padding: 8px 16px; border: 1px solid #ddd; background: ${currentPage === 1 ? '#f5f5f5' : '#fff'}; color: ${currentPage === 1 ? '#999' : '#333'}; border-radius: 4px; cursor: ${currentPage === 1 ? 'not-allowed' : 'pointer'};">
-                    ← Previous
-                </button>
-                <button class="pagination-btn ${currentPage >= totalPages ? 'disabled' : ''}" 
-                        data-action="next" 
-                        style="padding: 8px 16px; border: 1px solid #ddd; background: ${currentPage >= totalPages ? '#f5f5f5' : '#fff'}; color: ${currentPage >= totalPages ? '#999' : '#333'}; border-radius: 4px; cursor: ${currentPage >= totalPages ? 'not-allowed' : 'pointer'};">
-                    Next →
-                </button>
-            </div>
-        </div>
-    `;
-
-    $tableContainer.after(paginationHTML);
-}
-
-function showTableError(message) {
-    jQuery('.customer-table tbody').html(
-        '<tr><td colspan="7" style="text-align: center; padding: 30px; color: #d32f2f;">' +
-        '<div style="margin-bottom: 10px;">⚠️</div>' +
-        message +
-        '<br><button onclick="loadCustomerList()" style="margin-top: 10px; padding: 5px 15px; background: #2196f3; color: white; border: none; border-radius: 3px; cursor: pointer;">Retry</button>' +
-        '</td></tr>'
-    );
-
-    // Remove pagination on error
-    jQuery('.pagination-container').remove();
-}
-
-function initializeLightbox() {
-    if (typeof jQuery.prettyPhoto !== 'undefined') {
-        jQuery('a[rel^="prettyPhoto"]').prettyPhoto({
-            social_tools: false,
-            theme: 'pp_woocommerce',
-            horizontal_padding: 20,
-            opacity: 0.8,
-            deeplinking: false
-        });
-    }
-}
-
-
-// Enhanced populateEditForm function with image preview
-function populateEditForm(customer) {
-    const form = jQuery('#customerForm');
-
-    // Add hidden field for customer ID
-    if (jQuery('#customer_id_hidden').length === 0) {
-        form.prepend('<input type="hidden" id="customer_id_hidden" name="customer_id" value="' + customer.id + '">');
-    } else {
-        jQuery('#customer_id_hidden').val(customer.id);
+    function showTableError(msg) {
+        $('.customer-table tbody').html(
+            '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--danger);">' +
+            '⚠ ' + msg +
+            '<br><button onclick="loadCustomerList()" style="margin-top:10px;padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font);">Retry</button>' +
+            '</td></tr>'
+        );
+        $('.pagination-container').remove();
     }
 
-    // Populate form fields
-    form.find('input[name="customer_name"]').val(customer.customer_name);
-    form.find('input[name="customer_phone"]').val(customer.customer_phone);
-    form.find('input[name="passport_number"]').val(customer.passport_number);
-    form.find('input[name="visa_country"]').val(customer.visa_country);
-    form.find('select[name="visa_type"]').val(customer.visa_type);
-    form.find('input[name="submission_date"]').val(customer.submission_date);
+    window.populateEditForm = function (customer) {
+        const form = $('#customerForm');
 
-    // Handle passport image preview
-    const passportInput = form.find('input[name="passport_image"]');
-    passportInput.removeAttr('required');
-
-    // Remove any existing preview
-    jQuery('.passport-image-preview').remove();
-
-    // Add current passport image preview
-    if (customer.passport_image) {
-        const previewHTML = `
-            <div class="passport-image-preview" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #666;">Current Passport Image:</p>
-                <img src="${customer.passport_image}" style="max-width: 200px; height: auto; border-radius: 4px; border: 2px solid #ddd;">
-                <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">Upload a new image to replace this one (optional)</p>
-            </div>
-        `;
-        passportInput.parent().find('label').after(previewHTML);
-    }
-
-    // Handle additional images preview
-    jQuery('.additional-images-preview').remove();
-
-    if (customer.additional_images && customer.additional_images.length > 0) {
-        let additionalImagesHTML = `
-            <div class="additional-images-preview" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #666;">Current Additional Images:</p>
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-        `;
-
-        customer.additional_images.forEach(function(image) {
-            additionalImagesHTML += `
-                <div class="preview-image-item" style="position: relative;">
-                    <img src="${image.image_url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 2px solid #ddd;">
-                    <button type="button" class="delete-additional-image" data-image-id="${image.id}" 
-                            style="position: absolute; top: -5px; right: -5px; background: #f44336; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 1;">×</button>
-                </div>
-            `;
-        });
-
-        additionalImagesHTML += `
-                </div>
-                <p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">You can delete images above or add new ones below</p>
-            </div>
-        `;
-
-        form.find('.multiple-image-upload-section').before(additionalImagesHTML);
-    }
-
-    // Change submit button text
-    form.find('button[type="submit"]').text('Update Customer Information');
-
-    // Show message
-    jQuery('#formMessage').html('<div class="info">Editing customer: <strong>' + customer.customer_name + '</strong><br>Make your changes and click Update to save.</div>');
-
-    // Scroll to form
-    jQuery('html, body').animate({
-        scrollTop: form.offset().top - 100
-    }, 500);
-}
-
-jQuery(document).ready(function($) {
-    // Pagination button handlers
-    $(document).on('click', '.pagination-btn', function() {
-        if ($(this).hasClass('disabled') || isLoading) return;
-
-        const action = $(this).data('action');
-        if (action === 'prev' && currentPage > 1) {
-            currentPage--;
-            loadCustomerList();
-        } else if (action === 'next' && currentPage < totalPages) {
-            currentPage++;
-            loadCustomerList();
-        }
-    });
-
-
-    // Add handler for deleting additional images
-    jQuery(document).on('click', '.delete-additional-image', function() {
-        if (!confirm('Are you sure you want to delete this image?')) {
-            return;
+        if ($('#customer_id_hidden').length === 0) {
+            form.prepend('<input type="hidden" id="customer_id_hidden" name="customer_id" value="' + customer.id + '">');
+        } else {
+            $('#customer_id_hidden').val(customer.id);
         }
 
-        const imageId = jQuery(this).data('image-id');
-        const $imageItem = jQuery(this).closest('.preview-image-item');
+        form.find('input[name="customer_name"]').val(customer.customer_name);
+        form.find('input[name="customer_phone"]').val(customer.customer_phone);
+        form.find('input[name="passport_number"]').val(customer.passport_number);
+        form.find('select[name="visa_country"]').val(customer.visa_country);
+        form.find('select[name="visa_type"]').val(customer.visa_type);
+        form.find('input[name="submission_date"]').val(customer.submission_date);
 
-        jQuery.ajax({
-            url: agent_dashboard_ajax.ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'delete_customer_image',
-                image_id: imageId,
-                nonce: agent_dashboard_ajax.nonce
-            },
-            beforeSend: function() {
-                $imageItem.css('opacity', '0.5');
-            },
-            success: function(response) {
-                if (response.success) {
-                    $imageItem.fadeOut(300, function() {
-                        jQuery(this).remove();
-                        // Check if no more images
-                        if (jQuery('.preview-image-item').length === 0) {
-                            jQuery('.additional-images-preview').remove();
-                        }
-                    });
-                } else {
-                    alert('Error: ' + response.data);
-                    $imageItem.css('opacity', '1');
-                }
-            },
-            error: function() {
-                alert('Failed to delete image. Please try again.');
-                $imageItem.css('opacity', '1');
-            }
-        });
-    });
-
-// Add image preview on file selection
-    jQuery(document).on('change', 'input[name="passport_image"]', function() {
-        const file = this.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                // Remove old preview
-                jQuery('.new-passport-preview').remove();
-
-                // Add new preview
-                const previewHTML = `
-                <div class="new-passport-preview" style="margin: 10px 0; padding: 10px; background: #e8f5e9; border-radius: 5px;">
-                    <p style="margin: 0 0 10px 0; font-weight: bold; color: #2e7d32;">New Passport Image Preview:</p>
-                    <img src="${e.target.result}" style="max-width: 200px; height: auto; border-radius: 4px; border: 2px solid #4caf50;">
-                </div>
-            `;
-                jQuery('input[name="passport_image"]').parent().append(previewHTML);
-            };
-            reader.readAsDataURL(file);
+        // Passport image
+        $('input[name="passport_image"]').removeAttr('required');
+        $('.passport-image-preview').remove();
+        if (customer.passport_image) {
+            $('input[name="passport_image"]').parent().find('label').after(
+                '<div class="passport-image-preview">' +
+                '<p>Current Passport Image</p>' +
+                '<img src="' + customer.passport_image + '">' +
+                '<p style="margin-top:8px;font-size:.78rem;color:var(--text-muted);">Upload a new image to replace (optional)</p>' +
+                '</div>'
+            );
         }
-    });
 
-// Add preview for additional images
-    jQuery(document).on('change', 'input[name="additional_images[]"]', function() {
-        const file = this.files[0];
-        const $parent = jQuery(this).parent();
-
-        // Remove existing preview in this field
-        $parent.find('.additional-image-preview').remove();
-
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const previewHTML = `
-                <div class="additional-image-preview" style="margin: 10px 0;">
-                    <img src="${e.target.result}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 4px; border: 2px solid #4caf50;">
-                </div>
-            `;
-                $parent.append(previewHTML);
-            };
-            reader.readAsDataURL(file);
+        // Additional images
+        $('.additional-images-preview').remove();
+        if (customer.additional_images && customer.additional_images.length > 0) {
+            let previewHTML =
+                '<div class="additional-images-preview">' +
+                '<p>Current Additional Images</p>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">';
+            customer.additional_images.forEach(img => {
+                previewHTML +=
+                    '<div class="preview-image-item">' +
+                    '<img src="' + img.image_url + '">' +
+                    '<button type="button" class="delete-additional-image" data-image-id="' + img.id + '">×</button>' +
+                    '</div>';
+            });
+            previewHTML += '</div><p style="margin-top:10px;font-size:.78rem;color:var(--text-muted);">Delete images above or add new ones below</p></div>';
+            form.find('.multiple-image-upload-section').before(previewHTML);
         }
-    });
 
-    // Update form reset to clear all edit-related elements
-    jQuery('#customerForm').on('reset', function() {
-        jQuery('#customer_id_hidden').remove();
-        jQuery('.passport-image-preview').remove();
-        jQuery('.new-passport-preview').remove();
-        jQuery('.additional-images-preview').remove();
-        jQuery('.additional-image-preview').remove();
-        jQuery('#customerForm button[type="submit"]').text('Submit Customer Information');
-        jQuery('input[name="passport_image"]').attr('required', 'required');
-        jQuery('#formMessage').empty();
-    });
+        form.find('button[type="submit"]').text('Update Customer');
+        $('#cancel-edit-btn').show();
 
-    // Add cancel edit button functionality
-    jQuery(document).on('click', '#cancel-edit-btn', function() {
-        if (confirm('Are you sure you want to cancel editing? Any unsaved changes will be lost.')) {
-            jQuery('#customerForm')[0].reset();
-            jQuery('#customerForm').trigger('reset');
-        }
-    });
+        $('#formMessage').html(
+            '<div class="info">✎ Editing: <strong>' + customer.customer_name + '</strong> — make your changes and click Update.</div>'
+        );
 
+        $('html, body').animate({ scrollTop: form.offset().top - 80 }, 400);
+    };
+
+    window.showSignup = function () {
+        $('.agent-login-form').hide();
+        $('.agent-signup-form').show();
+    };
+    window.showLogin = function () {
+        $('.agent-signup-form').hide();
+        $('.agent-login-form').show();
+    };
 });

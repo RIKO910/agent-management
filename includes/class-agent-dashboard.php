@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+
 class AgentDashboard {
 
     public function __construct() {
@@ -15,16 +16,46 @@ class AgentDashboard {
         add_action('wp_ajax_get_customer_details', array($this, 'handle_get_customer_details'));
         add_action('wp_ajax_update_customer', array($this, 'handle_update_customer'));
         add_action('wp_ajax_delete_customer_image', array($this, 'handle_delete_customer_image'));
+        add_action('wp_ajax_get_customer_countries', array($this, 'handle_get_customer_countries'));
+        add_action('wp_ajax_get_customers_by_country', array($this, 'handle_get_customers_by_country'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
+    }
+
+    /**
+     * Get list of all countries
+     */
+    public function get_countries_list() {
+        return array(
+            'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia',
+            'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium',
+            'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria',
+            'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad',
+            'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic',
+            'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea',
+            'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia',
+            'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras',
+            'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan',
+            'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Korea, North', 'Korea, South', 'Kosovo', 'Kuwait', 'Kyrgyzstan',
+            'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
+            'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius',
+            'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar',
+            'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Macedonia',
+            'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru',
+            'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis',
+            'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe',
+            'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia',
+            'Solomon Islands', 'Somalia', 'South Africa', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname',
+            'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo',
+            'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine',
+            'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City',
+            'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
+        );
     }
 
     public function dashboard_shortcode() {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             return '<p>Please login as an agent to access the dashboard.</p>';
         }
-
-        // Enqueue WooCommerce lightbox scripts
-
 
         ob_start();
         ?>
@@ -34,6 +65,7 @@ class AgentDashboard {
             <div class="dashboard-tabs">
                 <button class="tab-button active" data-tab="customer-form">Add Customer</button>
                 <button class="tab-button" data-tab="customer-list">Customer List</button>
+                <button class="tab-button" data-tab="customer-countries">Countries</button>
             </div>
 
             <div id="customer-form" class="tab-content active">
@@ -59,7 +91,12 @@ class AgentDashboard {
                         </div>
                         <div class="form-group">
                             <label>Visa Country *</label>
-                            <input type="text" name="visa_country" required>
+                            <select name="visa_country" required>
+                                <option value="">Select Country</option>
+                                <?php foreach ($this->get_countries_list() as $country): ?>
+                                    <option value="<?php echo esc_attr($country); ?>"><?php echo esc_html($country); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
 
@@ -103,6 +140,16 @@ class AgentDashboard {
 
             <div id="customer-list" class="tab-content">
                 <h3>Customer List</h3>
+                <div class="search-bar-wrapper">
+                    <div class="search-input-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="10" cy="10" r="7"/>
+                            <line x1="21" y1="21" x2="15" y2="15"/>
+                        </svg>
+                        <input type="text" id="customer-search-input" placeholder="Search by name, phone, passport number, or country...">
+                    </div>
+                    <button type="button" id="search-clear-btn" class="btn-search-clear">Clear</button>
+                </div>
                 <div class="customer-table-container">
                     <table class="customer-table">
                         <thead>
@@ -118,9 +165,19 @@ class AgentDashboard {
                         </tr>
                         </thead>
                         <tbody>
-                        <?php echo $this->get_customer_list(); ?>
+                        <tr><td colspan="8" style="text-align:center;">Loading customers...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <div id="customer-countries" class="tab-content">
+                <h3>Customers by Country</h3>
+                <div id="country-tab-content">
+                    <div style="text-align:center;padding:40px;">
+                        <div class="loading-spinner-large"></div>
+                        <p style="margin-top:12px;">Loading countries...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -129,7 +186,7 @@ class AgentDashboard {
     }
 
     public function get_customer_list() {
-        $result = $this->get_customer_list_paginated(1, 5);
+        $result = $this->get_customer_list_paginated(1, 10);
         return $result['html'];
     }
 
@@ -246,7 +303,6 @@ class AgentDashboard {
 
     // Helper function to upload files to WordPress media library
     private function upload_to_media_library($file) {
-        // Check if required functions are available
         if (!function_exists('wp_handle_upload')) {
             require_once(ABSPATH . 'wp-admin/includes/file.php');
         }
@@ -257,31 +313,26 @@ class AgentDashboard {
             require_once(ABSPATH . 'wp-admin/includes/media.php');
         }
 
-        // Check file upload
         if ($file['error'] !== UPLOAD_ERR_OK) {
             return new WP_Error('upload_error', 'File upload error: ' . $file['error']);
         }
 
-        // Validate file type
         $file_type = wp_check_filetype($file['name']);
         if (!$file_type['type']) {
             return new WP_Error('invalid_file_type', 'Invalid file type');
         }
 
-        // Validate file size (5MB limit)
-        $max_size = 5 * 1024 * 1024; // 5MB in bytes
+        $max_size = 5 * 1024 * 1024;
         if ($file['size'] > $max_size) {
             return new WP_Error('file_too_large', 'File size exceeds 5MB limit');
         }
 
-        // Prepare file for upload
         $upload = wp_handle_upload($file, array('test_form' => false));
 
         if (isset($upload['error'])) {
             return new WP_Error('upload_failed', $upload['error']);
         }
 
-        // Create attachment post
         $attachment = array(
             'post_mime_type' => $upload['type'],
             'post_title' => preg_replace('/\.[^.]+$/', '', basename($upload['file'])),
@@ -296,14 +347,12 @@ class AgentDashboard {
             return $attachment_id;
         }
 
-        // Generate attachment metadata
         $attachment_data = wp_generate_attachment_metadata($attachment_id, $upload['file']);
         wp_update_attachment_metadata($attachment_id, $attachment_data);
 
         return $attachment_id;
     }
 
-    // Add this new method
     public function handle_get_customer_list() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -313,12 +362,12 @@ class AgentDashboard {
         wp_send_json_success($this->get_customer_list());
     }
 
-    // Add this method to handle paginated customer list
-    public function get_customer_list_paginated($page = 1, $per_page = 5) {
+    public function get_customer_list_paginated($page = 1, $per_page = 10, $search = '') {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             return array(
-                'html' => '<tr><td colspan="7">Access denied</td></tr>',
-                'has_more' => false
+                'html' => '<tr><td colspan="8">Access denied</td></tr>',
+                'has_more' => false,
+                'total' => 0
             );
         }
 
@@ -328,46 +377,56 @@ class AgentDashboard {
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
-        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
 
         if (!$agent) {
             return array(
-                'html' => '<tr><td colspan="7">Agent not found</td></tr>',
-                'has_more' => false
+                'html' => '<tr><td colspan="8">Agent not found</td></tr>',
+                'has_more' => false,
+                'total' => 0
             );
         }
 
-        // Calculate offset
         $offset = ($page - 1) * $per_page;
 
+        // Build search query
+        $search_condition = '';
+        $search_params = array($agent->id);
+
+        if (!empty($search)) {
+            $search_condition = " AND (customer_name LIKE %s OR customer_phone LIKE %s OR passport_number LIKE %s OR visa_country LIKE %s)";
+            $search_term = '%' . $wpdb->esc_like($search) . '%';
+            $search_params = array_merge($search_params, array($search_term, $search_term, $search_term, $search_term));
+        }
+
         // Get total count
-        $total_customers = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $customers_table WHERE agent_id = %d", $agent->id
-        ));
+        $count_query = "SELECT COUNT(*) FROM $customers_table WHERE agent_id = %d" . $search_condition;
+        $total_customers = $wpdb->get_var($wpdb->prepare($count_query, $search_params));
 
         // Get paginated customers
-        $customers = $wpdb->get_results($wpdb->prepare(
+        $query = $wpdb->prepare(
             "SELECT * FROM $customers_table 
-         WHERE agent_id = %d 
-         ORDER BY created_at DESC 
-         LIMIT %d OFFSET %d",
-            $agent->id, $per_page, $offset
-        ));
+             WHERE agent_id = %d" . $search_condition . "
+             ORDER BY created_at DESC 
+             LIMIT %d OFFSET %d",
+            array_merge($search_params, array($per_page, $offset))
+        );
+
+        $customers = $wpdb->get_results($query);
 
         if (empty($customers)) {
             return array(
-                'html' => '<tr><td colspan="7">No customers found</td></tr>',
-                'has_more' => false
+                'html' => '<tr><td colspan="8">No customers found</td></tr>',
+                'has_more' => false,
+                'total' => 0
             );
         }
 
         $output = '';
 
         foreach ($customers as $customer) {
-            // Get additional images for this customer
             $additional_images = $wpdb->get_results($wpdb->prepare(
                 "SELECT * FROM $customer_images_table WHERE customer_id = %d", $customer->id
             ));
@@ -377,14 +436,12 @@ class AgentDashboard {
             if (!empty($additional_images) || $customer->passport_image) {
                 $images_html = '<div class="customer-images">';
 
-                // Add passport image
                 if ($customer->passport_image) {
                     $images_html .= '<a href="' . esc_url($customer->passport_image) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Passport Image">';
                     $images_html .= '<img src="' . esc_url($customer->passport_image) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
                     $images_html .= '</a>';
                 }
 
-                // Add additional images
                 foreach ($additional_images as $image) {
                     $images_html .= '<a href="' . esc_url($image->image_url) . '" rel="prettyPhoto[gallery_' . $customer->id . ']" title="Additional Image">';
                     $images_html .= '<img src="' . esc_url($image->image_url) . '" width="50" height="50" style="object-fit: cover; margin: 2px;">';
@@ -399,22 +456,21 @@ class AgentDashboard {
             $status_class = 'status-' . $customer->status;
             $status_display = ucfirst($customer->status);
 
-            // Add action buttons
             $actions_html = '<div class="customer-actions" style="display: flex; gap: 5px;">';
-            $actions_html .= '<button class="edit-customer-btn" data-customer-id="' . $customer->id . '" style="padding: 5px 10px; background: #2196f3; color: white; border: none; border-radius: 3px; cursor: pointer;">Edit</button>';
-            $actions_html .= '<button class="delete-customer-btn" data-customer-id="' . $customer->id . '" style="padding: 5px 10px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer;">Delete</button>';
+            $actions_html .= '<button class="edit-customer-btn btn-edit" data-customer-id="' . $customer->id . '">Edit</button>';
+            $actions_html .= '<button class="delete-customer-btn btn-delete" data-customer-id="' . $customer->id . '">Delete</button>';
             $actions_html .= '</div>';
 
             $output .= '<tr>
-            <td>' . esc_html($customer->customer_name) . '</td>
-            <td>' . esc_html($customer->customer_phone) . '</td>
-            <td>' . esc_html($customer->passport_number) . '</td>
-            <td>' . esc_html($customer->visa_country) . '</td>
-            <td>' . esc_html($customer->submission_date) . '</td>
-            <td><span class="' . $status_class . '">' . $status_display . '</span></td>
-            <td>' . $images_html . '</td>
-            <td>' . $actions_html . '</td>
-        </tr>';
+                <td>' . esc_html($customer->customer_name) . '</td>
+                <td>' . esc_html($customer->customer_phone) . '</td>
+                <td>' . esc_html($customer->passport_number) . '</td>
+                <td>' . esc_html($customer->visa_country) . '</td>
+                <td>' . esc_html($customer->submission_date) . '</td>
+                <td><span class="' . $status_class . '">' . $status_display . '</span></td>
+                <td>' . $images_html . '</td>
+                <td>' . $actions_html . '</td>
+            </tr>';
         }
 
         $has_more = ($total_customers > ($offset + $per_page));
@@ -426,8 +482,6 @@ class AgentDashboard {
         );
     }
 
-
-    // Add AJAX handler for loading more customers
     public function handle_load_more_customers() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -436,14 +490,13 @@ class AgentDashboard {
         }
 
         $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
-        $per_page = 5;
+        $per_page = 10;
 
         $result = $this->get_customer_list_paginated($page, $per_page);
 
         wp_send_json_success($result);
     }
 
-    // Add this method to handle paginated customer list requests
     public function handle_get_customer_list_paginated() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -452,10 +505,142 @@ class AgentDashboard {
         }
 
         $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
-        $per_page = isset($_POST['per_page']) ? intval($_POST['per_page']) : 5;
+        $per_page = isset($_POST['per_page']) ? intval($_POST['per_page']) : 10;
+        $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
 
-        $result = $this->get_customer_list_paginated($page, $per_page);
+        $result = $this->get_customer_list_paginated($page, $per_page, $search);
         wp_send_json_success($result);
+    }
+
+    /**
+     * Get customers grouped by country
+     */
+    public function handle_get_customer_countries() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        global $wpdb;
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        $countries = $wpdb->get_results($wpdb->prepare(
+            "SELECT visa_country as country, COUNT(*) as count 
+             FROM $customers_table 
+             WHERE agent_id = %d 
+             GROUP BY visa_country 
+             ORDER BY visa_country ASC",
+            $agent->id
+        ));
+
+        wp_send_json_success(array('countries' => $countries));
+    }
+
+    /**
+     * Get customers by country with pagination
+     */
+    public function handle_get_customers_by_country() {
+        check_ajax_referer('agent_auth_nonce', 'nonce');
+
+        if (!is_user_logged_in() || !current_user_can('agent')) {
+            wp_send_json_error('Access denied');
+        }
+
+        $country = isset($_POST['country']) ? sanitize_text_field($_POST['country']) : '';
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $per_page = isset($_POST['per_page']) ? intval($_POST['per_page']) : 10;
+
+        if (empty($country)) {
+            wp_send_json_error('Country is required');
+        }
+
+        global $wpdb;
+        $current_user_id = get_current_user_id();
+        $agents_table = $wpdb->prefix . 'agents';
+        $customers_table = $wpdb->prefix . 'agent_customers';
+        $customer_images_table = $wpdb->prefix . 'agent_customer_images';
+
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
+        ));
+
+        if (!$agent) {
+            wp_send_json_error('Agent not found');
+        }
+
+        $offset = ($page - 1) * $per_page;
+
+        // Get total count for this country
+        $total = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $customers_table WHERE agent_id = %d AND visa_country = %s",
+            $agent->id, $country
+        ));
+
+        // Get customers for this country
+        $customers = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $customers_table 
+             WHERE agent_id = %d AND visa_country = %s 
+             ORDER BY created_at DESC 
+             LIMIT %d OFFSET %d",
+            $agent->id, $country, $per_page, $offset
+        ));
+
+        $html = '';
+        foreach ($customers as $customer) {
+            $additional_images = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $customer_images_table WHERE customer_id = %d", $customer->id
+            ));
+
+            $images_html = '<div class="customer-images">';
+            if ($customer->passport_image) {
+                $images_html .= '<a href="' . esc_url($customer->passport_image) . '" rel="prettyPhoto[gallery_country_' . $customer->id . ']" title="Passport Image">';
+                $images_html .= '<img src="' . esc_url($customer->passport_image) . '" width="50" height="50" style="object-fit: cover;">';
+                $images_html .= '</a>';
+            }
+            foreach ($additional_images as $image) {
+                $images_html .= '<a href="' . esc_url($image->image_url) . '" rel="prettyPhoto[gallery_country_' . $customer->id . ']" title="Additional Image">';
+                $images_html .= '<img src="' . esc_url($image->image_url) . '" width="50" height="50" style="object-fit: cover;">';
+                $images_html .= '</a>';
+            }
+            $images_html .= '</div>';
+
+            $status_class = 'status-' . $customer->status;
+            $status_display = ucfirst($customer->status);
+
+            $actions_html = '<div class="customer-actions">';
+            $actions_html .= '<button class="edit-customer-btn btn-edit" data-customer-id="' . $customer->id . '">Edit</button>';
+            $actions_html .= '<button class="delete-customer-btn btn-delete" data-customer-id="' . $customer->id . '">Delete</button>';
+            $actions_html .= '</div>';
+
+            $html .= '<tr>
+                <td>' . esc_html($customer->customer_name) . '</td>
+                <td>' . esc_html($customer->customer_phone) . '</td>
+                <td>' . esc_html($customer->passport_number) . '</td>
+                <td>' . esc_html($customer->visa_type) . '</td>
+                <td>' . esc_html($customer->submission_date) . '</td>
+                <td><span class="' . $status_class . '">' . $status_display . '</span></td>
+                <td>' . $images_html . '</td>
+                <td>' . $actions_html . '</td>
+            </tr>';
+        }
+
+        wp_send_json_success(array(
+            'html' => $html,
+            'total' => $total,
+            'total_pages' => ceil($total / $per_page),
+            'current_page' => $page
+        ));
     }
 
     public function handle_delete_customer() {
@@ -476,7 +661,6 @@ class AgentDashboard {
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
-        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
@@ -485,7 +669,6 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
-        // Verify this customer belongs to this agent
         $customer = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
             $customer_id, $agent->id
@@ -495,10 +678,7 @@ class AgentDashboard {
             wp_send_json_error('Customer not found or access denied');
         }
 
-        // Delete associated images from database
         $wpdb->delete($customer_images_table, array('customer_id' => $customer_id));
-
-        // Delete customer
         $result = $wpdb->delete($customers_table, array('id' => $customer_id));
 
         if ($result === false) {
@@ -508,7 +688,6 @@ class AgentDashboard {
         wp_send_json_success('Customer deleted successfully');
     }
 
-    // Get customer details handler
     public function handle_get_customer_details() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -527,7 +706,6 @@ class AgentDashboard {
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
-        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
@@ -536,7 +714,6 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
-        // Get customer details
         $customer = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
             $customer_id, $agent->id
@@ -546,19 +723,16 @@ class AgentDashboard {
             wp_send_json_error('Customer not found or access denied');
         }
 
-        // Get additional images
         $additional_images = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM $customer_images_table WHERE customer_id = %d",
             $customer_id
         ));
 
-        // Add additional images to customer object
         $customer->additional_images = $additional_images;
 
         wp_send_json_success($customer);
     }
 
-// Update customer handler
     public function handle_update_customer() {
         check_ajax_referer('customer_form_nonce', 'nonce');
 
@@ -577,7 +751,6 @@ class AgentDashboard {
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
-        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
@@ -586,7 +759,6 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
-        // Verify this customer belongs to this agent
         $existing_customer = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM $customers_table WHERE id = %d AND agent_id = %d",
             $customer_id, $agent->id
@@ -596,7 +768,6 @@ class AgentDashboard {
             wp_send_json_error('Customer not found or access denied');
         }
 
-        // Validate required fields
         $required_fields = array(
             'customer_name',
             'customer_phone',
@@ -612,7 +783,6 @@ class AgentDashboard {
             }
         }
 
-        // Prepare update data
         $customer_data = array(
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'customer_phone' => sanitize_text_field($_POST['customer_phone']),
@@ -622,7 +792,6 @@ class AgentDashboard {
             'submission_date' => sanitize_text_field($_POST['submission_date'])
         );
 
-        // Handle passport image update if new one is uploaded
         if (!empty($_FILES['passport_image']) && $_FILES['passport_image']['error'] === UPLOAD_ERR_OK) {
             $passport_attachment_id = $this->upload_to_media_library($_FILES['passport_image']);
             if (!is_wp_error($passport_attachment_id) && $passport_attachment_id) {
@@ -633,7 +802,6 @@ class AgentDashboard {
             }
         }
 
-        // Update customer
         $result = $wpdb->update(
             $customers_table,
             $customer_data,
@@ -644,7 +812,6 @@ class AgentDashboard {
             wp_send_json_error('Failed to update customer: ' . $wpdb->last_error);
         }
 
-        // Handle additional images if uploaded
         if (!empty($_FILES['additional_images'])) {
             $additional_images = $_FILES['additional_images'];
 
@@ -677,7 +844,6 @@ class AgentDashboard {
         wp_send_json_success('Customer information updated successfully');
     }
 
-    // Handle deleting individual customer images
     public function handle_delete_customer_image() {
         check_ajax_referer('agent_auth_nonce', 'nonce');
 
@@ -696,7 +862,6 @@ class AgentDashboard {
         $customers_table = $wpdb->prefix . 'agent_customers';
         $customer_images_table = $wpdb->prefix . 'agent_customer_images';
 
-        // Get agent
         $agent = $wpdb->get_row($wpdb->prepare(
             "SELECT id FROM $agents_table WHERE user_id = %d", $current_user_id
         ));
@@ -705,11 +870,10 @@ class AgentDashboard {
             wp_send_json_error('Agent not found');
         }
 
-        // Get image and verify ownership
         $image = $wpdb->get_row($wpdb->prepare(
             "SELECT ci.* FROM $customer_images_table ci
-         INNER JOIN $customers_table c ON ci.customer_id = c.id
-         WHERE ci.id = %d AND c.agent_id = %d",
+             INNER JOIN $customers_table c ON ci.customer_id = c.id
+             WHERE ci.id = %d AND c.agent_id = %d",
             $image_id, $agent->id
         ));
 
@@ -717,7 +881,6 @@ class AgentDashboard {
             wp_send_json_error('Image not found or access denied');
         }
 
-        // Delete the image record
         $result = $wpdb->delete($customer_images_table, array('id' => $image_id));
 
         if ($result === false) {
@@ -729,16 +892,14 @@ class AgentDashboard {
 
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
-        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.0', true);
-        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css');
+        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.1', true);
+        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.1');
 
-        // Enqueue WooCommerce lightbox scripts if WooCommerce is active
         if (class_exists('WooCommerce')) {
             wp_enqueue_script('prettyPhoto', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.min.js', array('jquery'), '1.0.0', true);
             wp_enqueue_script('prettyPhoto-init', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.init.min.js', array('jquery', 'prettyPhoto'), '1.0.0', true);
             wp_enqueue_style('woocommerce_prettyPhoto_css', WC()->plugin_url() . '/assets/css/prettyPhoto.css');
         } else {
-            // Fallback: Enqueue prettyPhoto from CDN if WooCommerce is not available
             wp_enqueue_script('prettyPhoto', 'https://cdnjs.cloudflare.com/ajax/libs/prettyPhoto/3.1.6/js/jquery.prettyPhoto.min.js', array('jquery'), '3.1.6', true);
             wp_enqueue_style('prettyPhoto-css', 'https://cdnjs.cloudflare.com/ajax/libs/prettyPhoto/3.1.6/css/prettyPhoto.min.css');
         }
