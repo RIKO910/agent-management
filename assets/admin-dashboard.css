@@ -1,0 +1,552 @@
+/* Agent Management admin — minimal UI aligned with frontend (DM Sans, slate, indigo) */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap');
+
+body.amg-agent-management-page .wrap.amg-shell {
+    max-width: none;
+    margin-right: 20px;
+}
+
+.amg-admin-app {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-bg: #eef2ff;
+    --success: #059669;
+    --success-bg: #d1fae5;
+    --warning: #d97706;
+    --warning-bg: #fef3c7;
+    --danger: #dc2626;
+    --danger-bg: #fee2e2;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    margin-top: 8px;
+    padding-bottom: 40px;
+}
+
+.amg-page-title {
+    font-size: clamp(1.5rem, 2.5vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 20px;
+    padding-left: 14px;
+    line-height: 1.25;
+}
+
+/* Tabs — pill strip like frontend dashboard */
+.amg-tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 20px;
+    max-width: fit-content;
+}
+
+.amg-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 22px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: var(--radius);
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.amg-tab:hover {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.amg-tab.is-active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.32);
+}
+
+/* Panels */
+.amg-panel {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius-lg) + 4px);
+    padding: 28px 32px 32px;
+    box-shadow: var(--shadow);
+}
+
+.amg-panel.is-active {
+    display: block;
+}
+
+.amg-panel[hidden]:not(.is-active) {
+    display: none !important;
+}
+
+.amg-panel-title {
+    margin: 0 0 20px;
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+}
+
+.amg-flash {
+    padding: 10px 14px;
+    margin: 0 0 14px;
+    border-radius: var(--radius);
+    background: #e0f2fe;
+    color: #0c4a6e;
+    border: 1px solid #bae6fd;
+    font-size: 0.875rem;
+}
+
+/* Toolbar / search */
+.amg-toolbar {
+    margin-bottom: 16px;
+}
+
+.amg-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.amg-search-input-wrap {
+    flex: 1;
+    min-width: 220px;
+    max-width: 420px;
+}
+
+.amg-search-input-wrap input[type='search'] {
+    width: 100%;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.amg-search-input-wrap input:focus {
+    border-color: var(--accent);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.amg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.amg-btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.amg-btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.amg-btn-soft {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.amg-btn-soft:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+.amg-btn-secondary {
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border);
+}
+
+.amg-btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Table */
+.amg-table-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    background: var(--surface);
+}
+
+.amg-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.amg-table thead th {
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.amg-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text);
+}
+
+.amg-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.amg-table tbody tr:hover {
+    background: #fafbff;
+}
+
+.amg-table--compact thead th,
+.amg-table--compact tbody td {
+    padding: 10px 12px;
+}
+
+/* Status text (legacy class names from PHP) */
+.amg-admin-app .status-pending {
+    color: var(--warning);
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+.amg-admin-app .status-approved {
+    color: var(--success);
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+.amg-admin-app .status-rejected {
+    color: var(--danger);
+    font-weight: 600;
+    font-size: 0.8125rem;
+}
+
+/* Select */
+.amg-select {
+    font-family: inherit;
+    font-size: 0.8125rem;
+    padding: 6px 28px 6px 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    max-width: 100%;
+}
+
+.amg-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+}
+
+/* Thumbnails */
+.amg-thumb-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    max-width: 220px;
+}
+
+.amg-thumb {
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: zoom-in;
+    border-radius: 6px;
+    overflow: hidden;
+    line-height: 0;
+    vertical-align: middle;
+}
+
+.amg-thumb:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.amg-thumb img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    display: block;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.amg-thumb:hover img {
+    border-color: var(--accent);
+}
+
+/* Pagination */
+.amg-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 18px;
+    padding: 12px;
+}
+
+.amg-pagination-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.amg-pagination-link:hover {
+    background: var(--accent-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.amg-pagination-current {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+}
+
+/* Screen reader only */
+.amg-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── Overlay layers: above WP admin stacking (#adminmenuwrap ~ z-index 9999) ── */
+
+.amg-modal-overlay {
+    --amm-surface: #ffffff;
+    --amm-border: #e2e8f0;
+    --amm-text: #0f172a;
+    --amm-muted: #64748b;
+    --amm-danger: #dc2626;
+    /* Shared with .amg-table inside modal */
+    --text: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border: #e2e8f0;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --accent: #4f46e5;
+    --accent-bg: #eef2ff;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    position: fixed !important;
+    inset: 0 !important;
+    /* Below lightbox */
+    z-index: 499900 !important;
+    background: rgba(15, 23, 42, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.amg-modal-overlay.amg-open {
+    display: flex;
+}
+
+.amg-modal {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--amm-surface, #fff);
+    border-radius: var(--radius-lg, 16px);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.2);
+    max-width: min(920px, 100%);
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.amg-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--amm-border, #e2e8f0);
+}
+
+.amg-modal-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--amm-text, #0f172a);
+}
+
+.amg-modal-body {
+    padding: 16px 20px 20px;
+    overflow: auto;
+    flex: 1;
+}
+
+.amg-modal-body .amg-table {
+    font-size: 0.8125rem;
+}
+
+.amg-modal-loading {
+    text-align: center;
+    padding: 36px;
+    color: var(--amm-muted, #64748b);
+    font-size: 0.9rem;
+}
+
+.amg-modal-error {
+    color: var(--amm-danger, #dc2626);
+    padding: 16px;
+    font-size: 0.875rem;
+}
+
+.amg-lightbox-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    /* Always above WP admin + modal */
+    z-index: 599900 !important;
+    background: rgba(0, 0, 0, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.amg-lightbox-overlay.amg-open {
+    display: flex;
+}
+
+.amg-lightbox-inner {
+    position: relative;
+    max-width: 96vw;
+    max-height: 92vh;
+}
+
+.amg-lightbox-inner img {
+    max-width: 96vw;
+    max-height: 86vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+.amg-lightbox-close {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: #fff;
+    color: #0f172a;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.amg-lightbox-close:hover {
+    background: #f8fafc;
+}
+
+.amg-lightbox-caption {
+    text-align: center;
+    color: #cbd5e1;
+    font-size: 0.8125rem;
+    margin-top: 14px;
+    max-width: 90vw;
+}
+
+@media (max-width: 782px) {
+    .amg-search-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .amg-search-input-wrap {
+        max-width: none;
+    }
+    .amg-table-card {
+        overflow-x: auto;
+    }
+}

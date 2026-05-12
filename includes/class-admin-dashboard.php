@@ -1,334 +1,623 @@
 <?php
-// Prevent direct access
-if (!defined('ABSPATH')) {
-    exit;
+// Prevent direct access.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
+
 class AdminDashboard {
 
-    public function __construct() {
-        add_action('admin_menu', array($this, 'add_admin_menu'));
-        add_action('wp_ajax_update_agent_status', array($this, 'update_agent_status'));
-        add_action('wp_ajax_update_customer_status', array($this, 'update_customer_status'));
-    }
+	const LIST_PER_PAGE = 30;
 
-    public function add_admin_menu() {
-        add_menu_page(
-            'Agent Management',
-            'Agent Management',
-            'manage_options',
-            'agent-management',
-            array($this, 'admin_dashboard_page'),
-            'dashicons-groups',
-            30
-        );
-    }
+	public function __construct() {
+		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		add_filter( 'admin_body_class', array( $this, 'admin_body_class' ) );
+		add_action( 'wp_ajax_update_agent_status', array( $this, 'update_agent_status' ) );
+		add_action( 'wp_ajax_update_customer_status', array( $this, 'update_customer_status' ) );
+		add_action( 'wp_ajax_agent_management_get_agent_customers', array( $this, 'ajax_get_agent_customers' ) );
+	}
 
-    public function admin_dashboard_page() {
-        ?>
-        <div class="wrap">
-            <h1>Agent Management System</h1>
+	/**
+	 * Scripts and styles for Agent Management admin page only.
+	 */
+	public function enqueue_admin_assets( $hook ) {
+		if ( 'toplevel_page_agent-management' !== $hook ) {
+			return;
+		}
 
-            <div class="admin-tabs">
-                <h2 class="nav-tab-wrapper">
-                    <a href="#agents" class="nav-tab nav-tab-active">Agents</a>
-                    <a href="#customers" class="nav-tab">Customers</a>
-                </h2>
+		wp_enqueue_style(
+			'agent-management-admin',
+			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.css',
+			array(),
+			'1.2'
+		);
 
-                <div id="agents" class="tab-content active">
-                    <h3>Registered Agents</h3>
-                    <p class="agent-status-update" style="display: none">Agent Status Update...</p>
-                    <?php $this->display_agents_table(); ?>
-                </div>
+		wp_enqueue_script(
+			'agent-management-admin',
+			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.js',
+			array( 'jquery' ),
+			'1.2',
+			true
+		);
 
-                <div id="customers" class="tab-content">
-                    <h3>All Customers</h3>
-                    <p class="customer-status-update" style="display: none">Customer Status Update...</p>
-                    <?php $this->display_customers_table(); ?>
-                </div>
-            </div>
-        </div>
+		wp_localize_script(
+			'agent-management-admin',
+			'amgAdmin',
+			array(
+				'ajaxurl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'agent_management_admin' ),
+			)
+		);
+	}
 
-        <style>
-            .admin-tabs .tab-content { display: none; }
-            .admin-tabs .tab-content.active { display: block; }
-            .widefat { margin-top: 20px; }
-            .status-pending { color: #ffb900; }
-            .status-approved { color: #46b450; }
-            .status-rejected { color: #dc3232; }
-            .pagination { margin-top: 15px; text-align: center; }
-            .pagination a, .pagination span {
-                display: inline-block;
-                padding: 5px 10px;
-                margin: 0 2px;
-                border: 1px solid #ccc;
-                text-decoration: none;
-            }
-            .pagination a:hover { background-color: #f0f0f0; }
-            .pagination .current { background-color: #0073aa; color: white; border-color: #0073aa; }
-            .agent-status-update, .customer-status-update{
-                width: 90%;
-                padding: 10px;
-                border-radius: 5px;
-                background: #d1ecf1;
-                color: #0c5460;
-                border: 1px solid #bee5eb;
-            }
-        </style>
+	/**
+	 * Body class for scoped admin styling.
+	 *
+	 * @param string $classes Existing classes.
+	 * @return string
+	 */
+	public function admin_body_class( $classes ) {
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return $classes;
+		}
 
-        <script>
-            jQuery(document).ready(function($) {
-                $('.nav-tab').click(function(e) {
-                    e.preventDefault();
-                    $('.nav-tab').removeClass('nav-tab-active');
-                    $('.tab-content').removeClass('active');
+		$screen = get_current_screen();
+		if ( $screen && 'toplevel_page_agent-management' === $screen->id ) {
+			$classes .= ' amg-agent-management-page';
+		}
 
-                    $(this).addClass('nav-tab-active');
-                    $($(this).attr('href')).addClass('active');
-                });
-            });
-        </script>
-        <?php
-    }
+		return $classes;
+	}
 
-    private function display_agents_table() {
-        global $wpdb;
-        $agents_table = $wpdb->prefix . 'agents';
-        $users_table = $wpdb->prefix . 'users';
+	public function add_admin_menu() {
+		add_menu_page(
+			'Agent Management',
+			'Agent Management',
+			'manage_options',
+			'agent-management',
+			array( $this, 'admin_dashboard_page' ),
+			'dashicons-groups',
+			30
+		);
+	}
 
-        // Pagination parameters
-        $per_page = 50;
-        $current_page = isset($_GET['agents_page']) ? max(1, intval($_GET['agents_page'])) : 1;
-        $offset = ($current_page - 1) * $per_page;
+	public function admin_dashboard_page() {
+		?>
+		<div class="wrap amg-shell">
+			<div class="amg-admin-app">
+				<h1 class="amg-page-title"><?php esc_html_e( 'Agent Management', 'agent-management' ); ?></h1>
 
-        // Get total count
-        $total_agents = $wpdb->get_var("SELECT COUNT(*) FROM $agents_table");
-        $total_pages = ceil($total_agents / $per_page);
+				<div class="amg-tab-list" role="tablist">
+					<a href="#agents" class="amg-tab is-active" role="tab" aria-selected="true"><?php esc_html_e( 'Agents', 'agent-management' ); ?></a>
+					<a href="#customers" class="amg-tab" role="tab" aria-selected="false"><?php esc_html_e( 'Customers', 'agent-management' ); ?></a>
+				</div>
 
-        // Get paginated results
-        $agents = $wpdb->get_results($wpdb->prepare("
-            SELECT a.*, u.user_email, u.user_login 
-            FROM $agents_table a 
-            LEFT JOIN $users_table u ON a.user_id = u.ID 
-            ORDER BY a.created_at DESC
-            LIMIT %d OFFSET %d
-        ", $per_page, $offset));
+				<div id="agents" class="amg-panel is-active" role="tabpanel">
+					<h2 class="amg-panel-title"><?php esc_html_e( 'Registered agents', 'agent-management' ); ?></h2>
+					<p class="agent-status-update amg-flash" style="display: none;" role="status"><?php esc_html_e( 'Updating agent status…', 'agent-management' ); ?></p>
+					<?php $this->display_agents_table(); ?>
+				</div>
 
-        echo '<table class="widefat fixed striped">';
-        echo '<thead>
-            <tr>
-                <th>Company</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>License No.</th>
-                <th>Status</th>
-                <th>Registration Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>';
+				<div id="customers" class="amg-panel" role="tabpanel" hidden>
+					<h2 class="amg-panel-title"><?php esc_html_e( 'All customers', 'agent-management' ); ?></h2>
+					<p class="customer-status-update amg-flash" style="display: none;" role="status"><?php esc_html_e( 'Updating customer status…', 'agent-management' ); ?></p>
+					<?php $this->display_customers_table(); ?>
+				</div>
+			</div>
+		</div>
 
-        if (empty($agents)) {
-            echo '<tr><td colspan="7" style="text-align: center;">No agents found.</td></tr>';
-        } else {
-            foreach ($agents as $agent) {
-                echo '<tr>
-                    <td>' . esc_html($agent->company_name) . '</td>
-                    <td>' . esc_html($agent->user_email) . '</td>
-                    <td>' . esc_html($agent->phone) . '</td>
-                    <td>' . esc_html($agent->license_number) . '</td>
-                    <td><span class="status-' . esc_attr($agent->status) . '">' . esc_html($agent->status) . '</span></td>
-                    <td>' . esc_html($agent->created_at) . '</td>
-                    <td>
-                        <select onchange="updateAgentStatus(' . $agent->id . ', this.value)">
-                            <option value="pending" ' . selected($agent->status, 'pending', false) . '>Pending</option>
-                            <option value="approved" ' . selected($agent->status, 'approved', false) . '>Approve</option>
-                            <option value="rejected" ' . selected($agent->status, 'rejected', false) . '>Reject</option>
-                        </select>
-                    </td>
-                </tr>';
-            }
-        }
+		<script>
+			jQuery(document).ready(function($) {
+				$('.amg-tab').on('click', function(e) {
+					e.preventDefault();
+					var target = $(this).attr('href');
+					$('.amg-tab').removeClass('is-active').attr('aria-selected', 'false');
+					$('.amg-panel').removeClass('is-active').attr('hidden', true);
 
-        echo '</tbody></table>';
+					$(this).addClass('is-active').attr('aria-selected', 'true');
+					$(target).addClass('is-active').removeAttr('hidden');
+				});
+			});
+		</script>
+		<?php
+	}
 
-        // Display pagination
-        $this->display_pagination($current_page, $total_pages, 'agents_page');
-        ?>
-        <script>
-            function updateAgentStatus(agentId, status) {
-                jQuery('.agent-status-update').show();
-                jQuery.post(ajaxurl, {
-                    action: 'update_agent_status',
-                    agent_id: agentId,
-                    status: status,
-                    nonce: '<?php echo wp_create_nonce('update_agent_status'); ?>'
-                }, function(response) {
-                    if (response.success) {
-                        alert('Status updated successfully');
-                        location.reload();
-                        jQuery('.agent-status-update').hide();
-                    } else {
-                        alert('Error updating status');
-                        jQuery('.agent-status-update').hide();
-                    }
-                });
-            }
-        </script>
-        <?php
-    }
+	/**
+	 * Fetch additional image URLs keyed by customer id.
+	 *
+	 * @param int[] $customer_ids Customer row ids.
+	 * @return array<int, array<int, string>>
+	 */
+	private function get_additional_images_map( array $customer_ids ) {
+		global $wpdb;
+		$customer_ids = array_filter( array_map( 'intval', $customer_ids ) );
+		if ( empty( $customer_ids ) ) {
+			return array();
+		}
 
-    private function display_customers_table() {
-        global $wpdb;
-        $customers_table = $wpdb->prefix . 'agent_customers';
-        $agents_table = $wpdb->prefix . 'agents';
-        $users_table = $wpdb->prefix . 'users';
+		$table           = $wpdb->prefix . 'agent_customer_images';
+		$placeholders    = implode( ',', array_fill( 0, count( $customer_ids ), '%d' ) );
+		$sql             = "SELECT customer_id, image_url FROM {$table} WHERE customer_id IN ({$placeholders}) ORDER BY id ASC";
+		$prepared        = $wpdb->prepare( $sql, ...$customer_ids );
+		$rows            = $wpdb->get_results( $prepared, ARRAY_A );
+		$map             = array();
 
-        // Pagination parameters
-        $per_page = 50;
-        $current_page = isset($_GET['customers_page']) ? max(1, intval($_GET['customers_page'])) : 1;
-        $offset = ($current_page - 1) * $per_page;
+		foreach ( $rows as $row ) {
+			$cid = (int) $row['customer_id'];
+			if ( ! isset( $map[ $cid ] ) ) {
+				$map[ $cid ] = array();
+			}
+			$map[ $cid ][] = $row['image_url'];
+		}
 
-        // Get total count
-        $total_customers = $wpdb->get_var("SELECT COUNT(*) FROM $customers_table");
-        $total_pages = ceil($total_customers / $per_page);
+		return $map;
+	}
 
-        // Get paginated results
-        $customers = $wpdb->get_results($wpdb->prepare("
-            SELECT c.*, a.company_name, u.user_email 
-            FROM $customers_table c 
-            LEFT JOIN $agents_table a ON c.agent_id = a.id 
-            LEFT JOIN $users_table u ON a.user_id = u.ID 
-            ORDER BY c.created_at DESC
-            LIMIT %d OFFSET %d
-        ", $per_page, $offset));
+	/**
+	 * HTML for passport + extras as thumbnails opening the admin lightbox.
+	 */
+	private function render_customer_images_cell( $passport_image, array $extras ) {
+		$urls = array();
+		if ( ! empty( $passport_image ) ) {
+			$urls[] = array(
+				'url'   => $passport_image,
+				'title' => __( 'Passport', 'agent-management' ),
+			);
+		}
+		foreach ( $extras as $i => $u ) {
+			if ( empty( $u ) ) {
+				continue;
+			}
+			$urls[] = array(
+				'url'   => $u,
+				'title' => sprintf(
+					/* translators: %d is image index */
+					__( 'Additional image %d', 'agent-management' ),
+					$i + 1
+				),
+			);
+		}
 
-        echo '<table class="widefat fixed striped">';
-        echo '<thead>
-            <tr>
-                <th>Customer Name</th>
-                <th>Phone</th>
-                <th>Passport No.</th>
-                <th>Visa Country</th>
-                <th>Agent</th>
-                <th>Submission Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>';
+		if ( empty( $urls ) ) {
+			return '<span aria-hidden="true">—</span>';
+		}
 
-        if (empty($customers)) {
-            echo '<tr><td colspan="8" style="text-align: center;">No customers found.</td></tr>';
-        } else {
-            foreach ($customers as $customer) {
-                echo '<tr>
-                    <td>' . esc_html($customer->customer_name) . '</td>
-                    <td>' . esc_html($customer->customer_phone) . '</td>
-                    <td>' . esc_html($customer->passport_number) . '</td>
-                    <td>' . esc_html($customer->visa_country) . '</td>
-                    <td>' . esc_html($customer->company_name) . '</td>
-                    <td>' . esc_html($customer->submission_date) . '</td>
-                    <td><span class="status-' . esc_attr($customer->status) . '">' . esc_html($customer->status) . '</span></td>
-                    <td>
-                        <select onchange="updateCustomerStatus(' . $customer->id . ', this.value)">
-                            <option value="pending" ' . selected($customer->status, 'pending', false) . '>Pending</option>
-                            <option value="approved" ' . selected($customer->status, 'approved', false) . '>Approve</option>
-                            <option value="rejected" ' . selected($customer->status, 'rejected', false) . '>Reject</option>
-                        </select>
-                    </td>
-                </tr>';
-            }
-        }
+		$html = '<div class="amg-thumb-wrap">';
+		foreach ( $urls as $item ) {
+			$html .= sprintf(
+				'<button type="button" class="amg-thumb amg-lightbox-trigger" data-full="%s" data-title="%s" title="%s">%s</button>',
+				esc_attr( $item['url'] ),
+				esc_attr( $item['title'] ),
+				esc_attr( $item['title'] ),
+				sprintf(
+					'<img src="%s" alt="">',
+					esc_url( $item['url'] )
+				)
+			);
+		}
+		$html .= '</div>';
 
-        echo '</tbody></table>';
+		return $html;
+	}
 
-        // Display pagination
-        $this->display_pagination($current_page, $total_pages, 'customers_page');
-        ?>
-        <script>
-            function updateCustomerStatus(customerId, status) {
-                jQuery('.customer-status-update').show();
-                jQuery.post(ajaxurl, {
-                    action: 'update_customer_status',
-                    customer_id: customerId,
-                    status: status,
-                    nonce: '<?php echo wp_create_nonce('update_customer_status'); ?>'
-                }, function(response) {
-                    if (response.success) {
-                        alert('Status updated successfully');
-                        location.reload();
-                        jQuery('.customer-status-update').hide();
-                    } else {
-                        alert('Error updating status');
-                        jQuery('.customer-status-update').hide();
-                    }
-                });
-            }
-        </script>
-        <?php
-    }
+	/**
+	 * Query args to keep when paginating (other tab’s search is dropped intentionally).
+	 */
+	private function agents_pagination_args() {
+		$args = array();
+		if ( isset( $_GET['agents_search'] ) && '' !== $_GET['agents_search'] ) {
+			$args['agents_search'] = sanitize_text_field( wp_unslash( $_GET['agents_search'] ) );
+		}
+		return $args;
+	}
 
-    private function display_pagination($current_page, $total_pages, $page_param) {
-        if ($total_pages <= 1) return;
+	private function customers_pagination_args() {
+		$args = array();
+		if ( isset( $_GET['customers_search'] ) && '' !== $_GET['customers_search'] ) {
+			$args['customers_search'] = sanitize_text_field( wp_unslash( $_GET['customers_search'] ) );
+		}
+		return $args;
+	}
 
-        echo '<div class="pagination">';
+	private function display_agents_table() {
+		global $wpdb;
+		$agents_table = $wpdb->prefix . 'agents';
+		$users_table  = $wpdb->prefix . 'users';
 
-        // Previous button
-        if ($current_page > 1) {
-            echo '<a href="' . esc_url(add_query_arg($page_param, $current_page - 1)) . '">&laquo; Previous</a>';
-        }
+		$per_page     = self::LIST_PER_PAGE;
+		$current_page = isset( $_GET['agents_page'] ) ? max( 1, intval( $_GET['agents_page'] ) ) : 1;
+		$offset       = ( $current_page - 1 ) * $per_page;
+		$search       = isset( $_GET['agents_search'] ) ? sanitize_text_field( wp_unslash( $_GET['agents_search'] ) ) : '';
+		$search_like  = '%' . $wpdb->esc_like( $search ) . '%';
 
-        // Page numbers
-        for ($i = 1; $i <= $total_pages; $i++) {
-            if ($i == $current_page) {
-                echo '<span class="current">' . $i . '</span>';
-            } else {
-                echo '<a href="' . esc_url(add_query_arg($page_param, $i)) . '">' . $i . '</a>';
-            }
-        }
+		$where_sql = '';
+		if ( $search !== '' ) {
+			$where_sql = $wpdb->prepare(
+				' WHERE ( a.company_name LIKE %s OR a.phone LIKE %s OR a.license_number LIKE %s OR a.address LIKE %s OR u.user_email LIKE %s OR u.user_login LIKE %s ) ',
+				$search_like,
+				$search_like,
+				$search_like,
+				$search_like,
+				$search_like,
+				$search_like
+			);
+		}
 
-        // Next button
-        if ($current_page < $total_pages) {
-            echo '<a href="' . esc_url(add_query_arg($page_param, $current_page + 1)) . '">Next &raquo;</a>';
-        }
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where_sql is built with prepare or empty.
+		$total_agents = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$agents_table} a LEFT JOIN {$users_table} u ON a.user_id = u.ID {$where_sql}" );
+		$total_pages  = max( 1, (int) ceil( $total_agents / $per_page ) );
 
-        echo '</div>';
-    }
+		// LIMIT/OFFSET concatenated — $where_sql is either empty or already prepared (LIKE % would break nested prepare).
+		$sql_agents = "SELECT a.*, u.user_email, u.user_login
+			FROM {$agents_table} a
+			LEFT JOIN {$users_table} u ON a.user_id = u.ID
+			{$where_sql}
+			ORDER BY a.created_at DESC
+			LIMIT " . absint( $per_page ) . ' OFFSET ' . absint( $offset );
 
-    public function update_agent_status() {
-        check_ajax_referer('update_agent_status', 'nonce');
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where_sql is empty or wpdb-prepared fragment; limits are absint.
+		$agents = $wpdb->get_results( $sql_agents );
 
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Access denied');
-        }
+		$agents_form_action = admin_url( 'admin.php' );
+		?>
+		<div class="amg-toolbar">
+			<form method="get" action="<?php echo esc_url( $agents_form_action ); ?>" class="amg-search-row">
+				<input type="hidden" name="page" value="agent-management" />
+				<label class="amg-sr-only" for="amg-agents-search"><?php esc_html_e( 'Search agents', 'agent-management' ); ?></label>
+				<div class="amg-search-input-wrap">
+					<input type="search" id="amg-agents-search" name="agents_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search agents: company, email, phone, license, address…', 'agent-management' ); ?>" autocomplete="off" />
+				</div>
+				<button type="submit" class="amg-btn amg-btn-primary"><?php esc_html_e( 'Search', 'agent-management' ); ?></button>
+			</form>
+		</div>
 
-        global $wpdb;
-        $agents_table = $wpdb->prefix . 'agents';
+		<div class="amg-table-card">
+		<table class="amg-table">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Company', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Email', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'License No.', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Registration Date', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Customers', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Actions', 'agent-management' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php if ( empty( $agents ) ) : ?>
+				<tr><td colspan="8" style="text-align: center;"><?php esc_html_e( 'No agents found.', 'agent-management' ); ?></td></tr>
+			<?php else : ?>
+				<?php foreach ( $agents as $agent ) : ?>
+					<tr>
+						<td><?php echo esc_html( $agent->company_name ); ?></td>
+						<td><?php echo esc_html( $agent->user_email ); ?></td>
+						<td><?php echo esc_html( $agent->phone ); ?></td>
+						<td><?php echo esc_html( $agent->license_number ); ?></td>
+						<td><span class="status-<?php echo esc_attr( $agent->status ); ?>"><?php echo esc_html( $agent->status ); ?></span></td>
+						<td><?php echo esc_html( $agent->created_at ); ?></td>
+						<td>
+							<button type="button" class="amg-btn amg-btn-soft amg-btn-customers" data-agent-id="<?php echo esc_attr( (string) $agent->id ); ?>" data-company="<?php echo esc_attr( $agent->company_name ); ?>">
+								<?php esc_html_e( 'View customers', 'agent-management' ); ?>
+							</button>
+						</td>
+						<td>
+							<select class="amg-select" onchange="updateAgentStatus(<?php echo (int) $agent->id; ?>, this.value)">
+								<option value="pending" <?php selected( $agent->status, 'pending' ); ?>><?php esc_html_e( 'Pending', 'agent-management' ); ?></option>
+								<option value="approved" <?php selected( $agent->status, 'approved' ); ?>><?php esc_html_e( 'Approve', 'agent-management' ); ?></option>
+								<option value="rejected" <?php selected( $agent->status, 'rejected' ); ?>><?php esc_html_e( 'Reject', 'agent-management' ); ?></option>
+							</select>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+			<?php endif; ?>
+			</tbody>
+		</table>
+		</div>
 
-        $wpdb->update($agents_table,
-            array('status' => sanitize_text_field($_POST['status'])),
-            array('id' => intval($_POST['agent_id']))
-        );
+		<?php
+		$this->display_pagination( $current_page, $total_pages, 'agents_page', $this->agents_pagination_args() );
+		?>
+		<script>
+			function updateAgentStatus(agentId, status) {
+				jQuery('.agent-status-update').show();
+				jQuery.post(ajaxurl, {
+					action: 'update_agent_status',
+					agent_id: agentId,
+					status: status,
+					nonce: '<?php echo esc_js( wp_create_nonce( 'update_agent_status' ) ); ?>'
+				}, function(response) {
+					if (response.success) {
+						alert('Status updated successfully');
+						location.reload();
+						jQuery('.agent-status-update').hide();
+					} else {
+						alert('Error updating status');
+						jQuery('.agent-status-update').hide();
+					}
+				});
+			}
+		</script>
+		<?php
+	}
 
-        wp_send_json_success();
-    }
+	private function display_customers_table() {
+		global $wpdb;
+		$customers_table = $wpdb->prefix . 'agent_customers';
+		$agents_table    = $wpdb->prefix . 'agents';
+		$users_table     = $wpdb->prefix . 'users';
 
-    public function update_customer_status() {
-        check_ajax_referer('update_customer_status', 'nonce');
+		$per_page     = self::LIST_PER_PAGE;
+		$current_page = isset( $_GET['customers_page'] ) ? max( 1, intval( $_GET['customers_page'] ) ) : 1;
+		$offset       = ( $current_page - 1 ) * $per_page;
+		$search       = isset( $_GET['customers_search'] ) ? sanitize_text_field( wp_unslash( $_GET['customers_search'] ) ) : '';
+		$search_like  = '%' . $wpdb->esc_like( $search ) . '%';
 
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Access denied');
-        }
+		$where_sql = '';
+		if ( $search !== '' ) {
+			$where_sql = $wpdb->prepare(
+				' WHERE ( c.customer_name LIKE %s OR c.customer_phone LIKE %s OR c.passport_number LIKE %s OR c.visa_country LIKE %s OR c.visa_type LIKE %s ) ',
+				$search_like,
+				$search_like,
+				$search_like,
+				$search_like,
+				$search_like
+			);
+		}
 
-        global $wpdb;
-        $customers_table = $wpdb->prefix . 'agent_customers';
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where_sql prepared or empty.
+		$total_customers = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$customers_table} c {$where_sql}" );
+		$total_pages     = max( 1, (int) ceil( $total_customers / $per_page ) );
 
-        $wpdb->update($customers_table,
-            array('status' => sanitize_text_field($_POST['status'])),
-            array('id' => intval($_POST['customer_id']))
-        );
+		$sql_customers = "SELECT c.*, a.company_name, u.user_email
+			FROM {$customers_table} c
+			LEFT JOIN {$agents_table} a ON c.agent_id = a.id
+			LEFT JOIN {$users_table} u ON a.user_id = u.ID
+			{$where_sql}
+			ORDER BY c.created_at DESC
+			LIMIT " . absint( $per_page ) . ' OFFSET ' . absint( $offset );
 
-        wp_send_json_success();
-    }
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where_sql safe; limits absint.
+		$customers = $wpdb->get_results( $sql_customers );
+
+		$cids    = wp_list_pluck( $customers, 'id' );
+		$img_map = $this->get_additional_images_map( $cids );
+
+		$customers_form_action = admin_url( 'admin.php' );
+		?>
+		<div class="amg-toolbar">
+			<form method="get" action="<?php echo esc_url( $customers_form_action ); ?>" class="amg-search-row">
+				<input type="hidden" name="page" value="agent-management" />
+				<label class="amg-sr-only" for="amg-customers-search"><?php esc_html_e( 'Search customers', 'agent-management' ); ?></label>
+				<div class="amg-search-input-wrap">
+					<input type="search" id="amg-customers-search" name="customers_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search customers: name, phone, passport, country, visa type…', 'agent-management' ); ?>" autocomplete="off" />
+				</div>
+				<button type="submit" class="amg-btn amg-btn-primary"><?php esc_html_e( 'Search', 'agent-management' ); ?></button>
+			</form>
+		</div>
+
+		<div class="amg-table-card">
+		<table class="amg-table">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Customer Name', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Passport No.', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Visa Country', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Agent', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Actions', 'agent-management' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php if ( empty( $customers ) ) : ?>
+				<tr><td colspan="9" style="text-align: center;"><?php esc_html_e( 'No customers found.', 'agent-management' ); ?></td></tr>
+			<?php else : ?>
+				<?php foreach ( $customers as $customer ) : ?>
+					<?php
+					$extras = isset( $img_map[ (int) $customer->id ] ) ? $img_map[ (int) $customer->id ] : array();
+					?>
+					<tr>
+						<td><?php echo esc_html( $customer->customer_name ); ?></td>
+						<td><?php echo esc_html( $customer->customer_phone ); ?></td>
+						<td><?php echo esc_html( $customer->passport_number ); ?></td>
+						<td><?php echo esc_html( $customer->visa_country ); ?></td>
+						<td><?php echo esc_html( $customer->company_name ); ?></td>
+						<td><?php echo $this->render_customer_images_cell( $customer->passport_image, $extras ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+						<td><?php echo esc_html( $customer->submission_date ); ?></td>
+						<td><span class="status-<?php echo esc_attr( $customer->status ); ?>"><?php echo esc_html( $customer->status ); ?></span></td>
+						<td>
+							<select class="amg-select" onchange="updateCustomerStatus(<?php echo (int) $customer->id; ?>, this.value)">
+								<option value="pending" <?php selected( $customer->status, 'pending' ); ?>><?php esc_html_e( 'Pending', 'agent-management' ); ?></option>
+								<option value="approved" <?php selected( $customer->status, 'approved' ); ?>><?php esc_html_e( 'Approve', 'agent-management' ); ?></option>
+								<option value="rejected" <?php selected( $customer->status, 'rejected' ); ?>><?php esc_html_e( 'Reject', 'agent-management' ); ?></option>
+							</select>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+			<?php endif; ?>
+			</tbody>
+		</table>
+		</div>
+
+		<?php
+		$this->display_pagination( $current_page, $total_pages, 'customers_page', $this->customers_pagination_args() );
+		?>
+		<script>
+			function updateCustomerStatus(customerId, status) {
+				jQuery('.customer-status-update').show();
+				jQuery.post(ajaxurl, {
+					action: 'update_customer_status',
+					customer_id: customerId,
+					status: status,
+					nonce: '<?php echo esc_js( wp_create_nonce( 'update_customer_status' ) ); ?>'
+				}, function(response) {
+					if (response.success) {
+						alert('Status updated successfully');
+						location.reload();
+						jQuery('.customer-status-update').hide();
+					} else {
+						alert('Error updating status');
+						jQuery('.customer-status-update').hide();
+					}
+				});
+			}
+		</script>
+		<?php
+	}
+
+	/**
+	 * Pagination links preserving admin page and optional search query args.
+	 *
+	 * @param int    $current_page Current page number.
+	 * @param int    $total_pages  Total pages.
+	 * @param string $page_param   Query key for this list’s page index.
+	 * @param array  $extra_args   e.g. array( 'agents_search' => 'foo' ).
+	 */
+	private function display_pagination( $current_page, $total_pages, $page_param, array $extra_args = array() ) {
+		if ( $total_pages <= 1 ) {
+			return;
+		}
+
+		$base = array_merge(
+			array( 'page' => 'agent-management' ),
+			$extra_args
+		);
+		$pagination_base = admin_url( 'admin.php' );
+
+		echo '<div class="amg-pagination">';
+
+		if ( $current_page > 1 ) {
+			echo '<a class="amg-pagination-link" href="' . esc_url( add_query_arg( array_merge( $base, array( $page_param => $current_page - 1 ) ), $pagination_base ) ) . '">&laquo; ' . esc_html__( 'Previous', 'agent-management' ) . '</a>';
+		}
+
+		for ( $i = 1; $i <= $total_pages; $i++ ) {
+			if ( $i === $current_page ) {
+				echo '<span class="amg-pagination-current">' . (int) $i . '</span>';
+			} else {
+				echo '<a class="amg-pagination-link" href="' . esc_url( add_query_arg( array_merge( $base, array( $page_param => $i ) ), $pagination_base ) ) . '">' . (int) $i . '</a>';
+			}
+		}
+
+		if ( $current_page < $total_pages ) {
+			echo '<a class="amg-pagination-link" href="' . esc_url( add_query_arg( array_merge( $base, array( $page_param => $current_page + 1 ) ), $pagination_base ) ) . '">' . esc_html__( 'Next', 'agent-management' ) . ' &raquo;</a>';
+		}
+
+		echo '</div>';
+	}
+
+	public function ajax_get_agent_customers() {
+		check_ajax_referer( 'agent_management_admin', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Access denied.', 'agent-management' ) ), 403 );
+		}
+
+		$agent_id = isset( $_POST['agent_id'] ) ? intval( $_POST['agent_id'] ) : 0;
+		if ( $agent_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid agent.', 'agent-management' ) ) );
+		}
+
+		global $wpdb;
+		$agents_table    = $wpdb->prefix . 'agents';
+		$customers_table = $wpdb->prefix . 'agent_customers';
+
+		$agent = $wpdb->get_row(
+			$wpdb->prepare( "SELECT id, company_name FROM {$agents_table} WHERE id = %d", $agent_id )
+		);
+		if ( ! $agent ) {
+			wp_send_json_error( array( 'message' => __( 'Agent not found.', 'agent-management' ) ) );
+		}
+
+		$customers = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM {$customers_table} WHERE agent_id = %d ORDER BY created_at DESC",
+				$agent_id
+			)
+		);
+
+		$cids    = wp_list_pluck( $customers, 'id' );
+		$img_map = $this->get_additional_images_map( $cids );
+
+		ob_start();
+		?>
+		<table class="amg-table amg-table--compact">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Customer Name', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Passport', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Country', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Submission', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php if ( empty( $customers ) ) : ?>
+					<tr><td colspan="7"><?php esc_html_e( 'No customers for this agent.', 'agent-management' ); ?></td></tr>
+				<?php else : ?>
+					<?php foreach ( $customers as $cust ) : ?>
+						<?php
+						$extras = isset( $img_map[ (int) $cust->id ] ) ? $img_map[ (int) $cust->id ] : array();
+						?>
+						<tr>
+							<td><?php echo esc_html( $cust->customer_name ); ?></td>
+							<td><?php echo esc_html( $cust->customer_phone ); ?></td>
+							<td><?php echo esc_html( $cust->passport_number ); ?></td>
+							<td><?php echo esc_html( $cust->visa_country ); ?></td>
+							<td><?php echo esc_html( $cust->submission_date ); ?></td>
+							<td><?php echo $this->render_customer_images_cell( $cust->passport_image, $extras ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+							<td><span class="status-<?php echo esc_attr( $cust->status ); ?>"><?php echo esc_html( $cust->status ); ?></span></td>
+						</tr>
+					<?php endforeach; ?>
+				<?php endif; ?>
+			</tbody>
+		</table>
+		<?php
+		$html = ob_get_clean();
+
+		wp_send_json_success( array( 'html' => $html ) );
+	}
+
+	public function update_agent_status() {
+		check_ajax_referer( 'update_agent_status', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Access denied' );
+		}
+
+		global $wpdb;
+		$agents_table = $wpdb->prefix . 'agents';
+
+		$wpdb->update(
+			$agents_table,
+			array( 'status' => sanitize_text_field( wp_unslash( $_POST['status'] ) ) ),
+			array( 'id' => intval( $_POST['agent_id'] ) )
+		);
+
+		wp_send_json_success();
+	}
+
+	public function update_customer_status() {
+		check_ajax_referer( 'update_customer_status', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Access denied' );
+		}
+
+		global $wpdb;
+		$customers_table = $wpdb->prefix . 'agent_customers';
+
+		$wpdb->update(
+			$customers_table,
+			array( 'status' => sanitize_text_field( wp_unslash( $_POST['status'] ) ) ),
+			array( 'id' => intval( $_POST['customer_id'] ) )
+		);
+
+		wp_send_json_success();
+	}
 }
-?>
