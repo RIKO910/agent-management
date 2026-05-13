@@ -357,12 +357,32 @@ button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; transform: no
 /* ── Customer Table ── */
 .customer-table-container {
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border);
     box-shadow: var(--shadow-sm);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) var(--surface-2);
+}
+
+.customer-table-container::-webkit-scrollbar {
+    height: 10px;
+}
+.customer-table-container::-webkit-scrollbar-track {
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+}
+.customer-table-container::-webkit-scrollbar-thumb {
+    background: var(--border-2);
+    border-radius: var(--radius-sm);
+}
+.customer-table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 .customer-table {
     width: 100%;
+    min-width: 920px;
     border-collapse: collapse;
     font-size: .9rem;
 }
@@ -755,8 +775,6 @@ button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; transform: no
     .agent-dashboard, .agent-login-form, .agent-signup-form { padding: 16px 14px 40px; }
     .dashboard-tabs { padding: 4px; }
     .tab-button { padding: 9px 14px; font-size: .82rem; }
-    .customer-table-container { overflow-x: auto; }
-    .customer-table { min-width: 880px; }
     .pagination-container { flex-direction: column; align-items: flex-start; }
     .search-bar-wrapper { flex-direction: column; }
     .search-bar-wrapper > * { width: 100%; }

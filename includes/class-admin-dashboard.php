@@ -41,14 +41,14 @@ class AdminDashboard {
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.css',
 			array(),
-			'1.4'
+			'1.5'
 		);
 
 		wp_enqueue_script(
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.js',
 			array( 'jquery' ),
-			'1.4',
+			'1.5',
 			true
 		);
 
