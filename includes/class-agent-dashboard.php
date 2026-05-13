@@ -58,9 +58,13 @@ class AgentDashboard {
         }
 
         ob_start();
+        $logout_redirect = apply_filters('agent_dashboard_logout_redirect', home_url('/'));
         ?>
         <div class="agent-dashboard">
-            <h2>Agent Dashboard</h2>
+            <div class="agent-dashboard-header">
+                <h2>Agent Dashboard</h2>
+                <a href="<?php echo esc_url(wp_logout_url($logout_redirect)); ?>" class="agent-dashboard-logout"><?php esc_html_e('Log out', 'agent-management'); ?></a>
+            </div>
 
             <div class="dashboard-tabs">
                 <button class="tab-button active" data-tab="customer-form">Add Customer</button>
@@ -893,7 +897,7 @@ class AgentDashboard {
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
         wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.1', true);
-        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.1');
+        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.2');
 
         if (class_exists('WooCommerce')) {
             wp_enqueue_script('prettyPhoto', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.min.js', array('jquery'), '1.0.0', true);

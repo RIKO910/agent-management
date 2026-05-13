@@ -53,18 +53,26 @@
     color: var(--text-primary);
 }
 
-/* ── Dashboard Title ── */
-.agent-dashboard > h2 {
+/* ── Dashboard header (title + logout) ── */
+.agent-dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+}
+.agent-dashboard-header h2 {
     font-size: clamp(1.6rem, 3vw, 2.4rem);
     font-weight: 700;
     letter-spacing: -.03em;
     color: var(--text-primary);
-    margin-bottom: 28px;
+    margin-bottom: 0;
     display: flex;
     align-items: center;
     gap: 12px;
 }
-.agent-dashboard > h2::before {
+.agent-dashboard-header h2::before {
     content: '';
     display: inline-block;
     width: 5px;
@@ -72,6 +80,28 @@
     background: var(--accent);
     border-radius: 3px;
     flex-shrink: 0;
+}
+a.agent-dashboard-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border-2);
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-size: .9rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+a.agent-dashboard-logout:hover {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-color: var(--danger);
 }
 
 /* ── Tab Nav ── */
