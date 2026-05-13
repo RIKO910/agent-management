@@ -157,7 +157,7 @@ class AgentDashboard {
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>All amount</label>
+                            <label>Total amount</label>
                             <input type="number" name="total_amount" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
                         </div>
                         <div class="form-group">
@@ -208,7 +208,7 @@ class AgentDashboard {
                             <th>Passport No.</th>
                             <th>Visa Country</th>
                             <th>Submission Date</th>
-                            <th>All amount</th>
+                            <th>Total amount</th>
                             <th>Deposit amount</th>
                             <th>Status</th>
                             <th>Images</th>
@@ -279,7 +279,7 @@ class AgentDashboard {
             }
         }
 
-        $total_amt = $this->parse_amount_post_field('total_amount', 'all amount');
+        $total_amt = $this->parse_amount_post_field('total_amount', 'total amount');
         if (!$total_amt['ok']) {
             wp_send_json_error($total_amt['error']);
         }
@@ -855,7 +855,7 @@ class AgentDashboard {
             }
         }
 
-        $total_amt = $this->parse_amount_post_field('total_amount', 'all amount');
+        $total_amt = $this->parse_amount_post_field('total_amount', 'total amount');
         if (!$total_amt['ok']) {
             wp_send_json_error($total_amt['error']);
         }
@@ -975,7 +975,7 @@ class AgentDashboard {
 
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
-        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.2', true);
+        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.3', true);
         wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.4');
 
         if (class_exists('WooCommerce')) {

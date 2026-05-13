@@ -279,7 +279,7 @@ class AdminDashboard {
 												<th><?php esc_html_e( 'Passport No.', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Visa Type', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
-												<th><?php esc_html_e( 'All amount', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Total amount', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Deposit amount', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
@@ -534,7 +534,7 @@ class AdminDashboard {
 				<th><?php esc_html_e( 'Agent', 'agent-management' ); ?></th>
 				<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
 				<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
-				<th><?php esc_html_e( 'All amount', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Total amount', 'agent-management' ); ?></th>
 				<th><?php esc_html_e( 'Deposit amount', 'agent-management' ); ?></th>
 				<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
 				<th><?php esc_html_e( 'Actions', 'agent-management' ); ?></th>

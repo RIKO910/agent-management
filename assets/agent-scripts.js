@@ -463,7 +463,7 @@ jQuery(document).ready(function ($) {
                 '<table class="customer-table">' +
                 '<thead><tr>' +
                 '<th>Name</th><th>Phone</th><th>Passport No.</th>' +
-                '<th>Visa Type</th><th>Submission Date</th><th>All amount</th><th>Deposit amount</th><th>Status</th><th>Images</th><th>Actions</th>' +
+                '<th>Visa Type</th><th>Submission Date</th><th>Total amount</th><th>Deposit amount</th><th>Status</th><th>Images</th><th>Actions</th>' +
                 '</tr></thead>' +
                 '<tbody>' + data.html + '</tbody>' +
                 '</table>' +
