@@ -8,6 +8,18 @@ class AdminDashboard {
 
 	const LIST_PER_PAGE = 30;
 
+	/**
+	 * @param mixed $value Stored decimal or null.
+	 * @return string Safe HTML fragment.
+	 */
+	private function format_customer_amount_cell( $value ) {
+		if ( null === $value || '' === $value ) {
+			return '<span aria-hidden="true">—</span>';
+		}
+
+		return esc_html( number_format( (float) $value, 2, '.', ',' ) );
+	}
+
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
@@ -29,14 +41,14 @@ class AdminDashboard {
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.css',
 			array(),
-			'1.3'
+			'1.4'
 		);
 
 		wp_enqueue_script(
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.js',
 			array( 'jquery' ),
-			'1.3',
+			'1.4',
 			true
 		);
 
@@ -267,6 +279,8 @@ class AdminDashboard {
 												<th><?php esc_html_e( 'Passport No.', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Visa Type', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'All amount', 'agent-management' ); ?></th>
+												<th><?php esc_html_e( 'Deposit amount', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
 												<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
 											</tr>
@@ -287,6 +301,8 @@ class AdminDashboard {
 													<td><?php echo esc_html( $row->passport_number ); ?></td>
 													<td><?php echo esc_html( $row->visa_type ); ?></td>
 													<td><?php echo esc_html( $row->submission_date ); ?></td>
+													<td><?php echo $this->format_customer_amount_cell( isset( $row->total_amount ) ? $row->total_amount : null ); ?></td>
+													<td><?php echo $this->format_customer_amount_cell( isset( $row->deposit_amount ) ? $row->deposit_amount : null ); ?></td>
 													<td><span class="<?php echo esc_attr( $badge_class ); ?>"><?php echo esc_html( ucfirst( $status ) ); ?></span></td>
 													<td>
 														<div class="customer-images amg-fe-images">
@@ -465,7 +481,9 @@ class AdminDashboard {
 		$where_sql = '';
 		if ( $search !== '' ) {
 			$where_sql = $wpdb->prepare(
-				' WHERE ( c.customer_name LIKE %s OR c.customer_phone LIKE %s OR c.passport_number LIKE %s OR c.visa_country LIKE %s OR c.visa_type LIKE %s ) ',
+				' WHERE ( c.customer_name LIKE %s OR c.customer_phone LIKE %s OR c.passport_number LIKE %s OR c.visa_country LIKE %s OR c.visa_type LIKE %s OR CAST(IFNULL(c.total_amount,0) AS CHAR) LIKE %s OR CAST(IFNULL(c.deposit_amount,0) AS CHAR) LIKE %s ) ',
+				$search_like,
+				$search_like,
 				$search_like,
 				$search_like,
 				$search_like,
@@ -499,7 +517,7 @@ class AdminDashboard {
 				<input type="hidden" name="page" value="agent-management" />
 				<label class="amg-sr-only" for="amg-customers-search"><?php esc_html_e( 'Search customers', 'agent-management' ); ?></label>
 				<div class="amg-search-input-wrap">
-					<input type="search" id="amg-customers-search" name="customers_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search customers: name, phone, passport, country, visa type…', 'agent-management' ); ?>" autocomplete="off" />
+					<input type="search" id="amg-customers-search" name="customers_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search customers: name, phone, passport, country, visa type, amounts…', 'agent-management' ); ?>" autocomplete="off" />
 				</div>
 				<button type="submit" class="amg-btn amg-btn-primary"><?php esc_html_e( 'Search', 'agent-management' ); ?></button>
 			</form>
@@ -513,16 +531,18 @@ class AdminDashboard {
 					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
 					<th><?php esc_html_e( 'Passport No.', 'agent-management' ); ?></th>
 					<th><?php esc_html_e( 'Visa Country', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Agent', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
-					<th><?php esc_html_e( 'Actions', 'agent-management' ); ?></th>
-				</tr>
+				<th><?php esc_html_e( 'Agent', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Images', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Submission Date', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'All amount', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Deposit amount', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Status', 'agent-management' ); ?></th>
+				<th><?php esc_html_e( 'Actions', 'agent-management' ); ?></th>
+			</tr>
 			</thead>
 			<tbody>
 			<?php if ( empty( $customers ) ) : ?>
-				<tr><td colspan="9" style="text-align: center;"><?php esc_html_e( 'No customers found.', 'agent-management' ); ?></td></tr>
+				<tr><td colspan="11" style="text-align: center;"><?php esc_html_e( 'No customers found.', 'agent-management' ); ?></td></tr>
 			<?php else : ?>
 				<?php foreach ( $customers as $customer ) : ?>
 					<?php
@@ -536,6 +556,8 @@ class AdminDashboard {
 						<td><?php echo esc_html( $customer->company_name ); ?></td>
 						<td><?php echo $this->render_customer_images_cell( $customer->passport_image, $extras ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
 						<td><?php echo esc_html( $customer->submission_date ); ?></td>
+						<td><?php echo $this->format_customer_amount_cell( isset( $customer->total_amount ) ? $customer->total_amount : null ); ?></td>
+						<td><?php echo $this->format_customer_amount_cell( isset( $customer->deposit_amount ) ? $customer->deposit_amount : null ); ?></td>
 						<td><span class="status-<?php echo esc_attr( $customer->status ); ?>"><?php echo esc_html( $customer->status ); ?></span></td>
 						<td>
 							<select class="amg-select" onchange="updateCustomerStatus(<?php echo (int) $customer->id; ?>, this.value)">

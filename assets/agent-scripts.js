@@ -463,7 +463,7 @@ jQuery(document).ready(function ($) {
                 '<table class="customer-table">' +
                 '<thead><tr>' +
                 '<th>Name</th><th>Phone</th><th>Passport No.</th>' +
-                '<th>Visa Type</th><th>Submission Date</th><th>Status</th><th>Images</th><th>Actions</th>' +
+                '<th>Visa Type</th><th>Submission Date</th><th>All amount</th><th>Deposit amount</th><th>Status</th><th>Images</th><th>Actions</th>' +
                 '</tr></thead>' +
                 '<tbody>' + data.html + '</tbody>' +
                 '</table>' +
@@ -536,7 +536,7 @@ jQuery(document).ready(function ($) {
 
         $tbody.fadeOut(150, function () {
             $tbody.html(
-                '<tr id="temp-loading"><td colspan="8" style="text-align:center;padding:40px;">' +
+                '<tr id="temp-loading"><td colspan="10" style="text-align:center;padding:40px;">' +
                 '<div class="loading-spinner-large"></div>' +
                 '<p style="margin-top:12px;color:var(--text-muted);">Loading customers…</p>' +
                 '</td></tr>'
@@ -593,7 +593,7 @@ jQuery(document).ready(function ($) {
 
     function showTableError(msg) {
         $('.customer-table tbody').html(
-            '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--danger);">' +
+            '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--danger);">' +
             '⚠ ' + msg +
             '<br><button onclick="loadCustomerList()" style="margin-top:10px;padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font);">Retry</button>' +
             '</td></tr>'
@@ -616,6 +616,8 @@ jQuery(document).ready(function ($) {
         form.find('select[name="visa_country"]').val(customer.visa_country);
         form.find('select[name="visa_type"]').val(customer.visa_type);
         form.find('input[name="submission_date"]').val(customer.submission_date);
+        form.find('input[name="total_amount"]').val(customer.total_amount != null && customer.total_amount !== '' ? customer.total_amount : '');
+        form.find('input[name="deposit_amount"]').val(customer.deposit_amount != null && customer.deposit_amount !== '' ? customer.deposit_amount : '');
 
         // Passport image
         $('input[name="passport_image"]').removeAttr('required');

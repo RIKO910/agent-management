@@ -386,6 +386,7 @@ button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; transform: no
 }
 .customer-table tbody tr:last-child td { border-bottom: none; }
 .customer-table tbody tr:hover { background: #fafbff; }
+.amount-cell-empty { color: var(--text-muted); }
 
 /* ── Status Badges ── */
 .status-pending {
@@ -755,7 +756,7 @@ button[type="submit"]:disabled { opacity: .6; cursor: not-allowed; transform: no
     .dashboard-tabs { padding: 4px; }
     .tab-button { padding: 9px 14px; font-size: .82rem; }
     .customer-table-container { overflow-x: auto; }
-    .customer-table { min-width: 640px; }
+    .customer-table { min-width: 880px; }
     .pagination-container { flex-direction: column; align-items: flex-start; }
     .search-bar-wrapper { flex-direction: column; }
     .search-bar-wrapper > * { width: 100%; }

@@ -55,6 +55,7 @@ class AgentManagementSystem {
 
     public function init() {
         $this->create_agent_role();
+        AgentDatabase::maybe_upgrade_customer_amount_columns();
 
         new AgentAuth();
         new AgentDashboard();

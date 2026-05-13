@@ -52,6 +52,40 @@ class AgentDashboard {
         );
     }
 
+    /**
+     * Parse optional monetary field from POST. Empty string yields null.
+     *
+     * @param string $key POST key (e.g. total_amount).
+     * @param string $label Human label for errors.
+     * @return array{ok:bool, value:?float, error?:string}
+     */
+    private function parse_amount_post_field($key, $label) {
+        if (!isset($_POST[$key])) {
+            return array('ok' => true, 'value' => null);
+        }
+        $raw = trim((string) wp_unslash($_POST[$key]));
+        if ($raw === '') {
+            return array('ok' => true, 'value' => null);
+        }
+        $clean = preg_replace('/[^0-9.\-]/', '', $raw);
+        if ($clean === '' || ! is_numeric($clean)) {
+            return array('ok' => false, 'error' => sprintf('Invalid amount for %s', $label));
+        }
+        return array('ok' => true, 'value' => round((float) $clean, 2));
+    }
+
+    /**
+     * @param mixed $value Stored decimal or null.
+     * @return string Safe HTML fragment for table cell.
+     */
+    private function format_amount_cell($value) {
+        if ($value === null || $value === '' || false === $value) {
+            return '<span class="amount-cell-empty">—</span>';
+        }
+
+        return esc_html(number_format((float) $value, 2, '.', ','));
+    }
+
     public function dashboard_shortcode() {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             return '<p>Please login as an agent to access the dashboard.</p>';
@@ -121,6 +155,17 @@ class AgentDashboard {
                         </div>
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>All amount</label>
+                            <input type="number" name="total_amount" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+                        </div>
+                        <div class="form-group">
+                            <label>Deposit amount</label>
+                            <input type="number" name="deposit_amount" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+                        </div>
+                    </div>
+
                     <div class="image-form-group">
                         <div class="form-group">
                             <label>Passport Image *</label>
@@ -150,7 +195,7 @@ class AgentDashboard {
                             <circle cx="10" cy="10" r="7"/>
                             <line x1="21" y1="21" x2="15" y2="15"/>
                         </svg>
-                        <input type="text" id="customer-search-input" placeholder="Search by name, phone, passport number, or country...">
+                        <input type="text" id="customer-search-input" placeholder="Search by name, phone, passport, country, or amounts…">
                     </div>
                     <button type="button" id="search-clear-btn" class="btn-search-clear">Clear</button>
                 </div>
@@ -163,13 +208,15 @@ class AgentDashboard {
                             <th>Passport No.</th>
                             <th>Visa Country</th>
                             <th>Submission Date</th>
+                            <th>All amount</th>
+                            <th>Deposit amount</th>
                             <th>Status</th>
                             <th>Images</th>
                             <th>Actions</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr><td colspan="8" style="text-align:center;">Loading customers...</td></tr>
+                        <tr><td colspan="10" style="text-align:center;">Loading customers...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -232,6 +279,15 @@ class AgentDashboard {
             }
         }
 
+        $total_amt = $this->parse_amount_post_field('total_amount', 'all amount');
+        if (!$total_amt['ok']) {
+            wp_send_json_error($total_amt['error']);
+        }
+        $deposit_amt = $this->parse_amount_post_field('deposit_amount', 'deposit amount');
+        if (!$deposit_amt['ok']) {
+            wp_send_json_error($deposit_amt['error']);
+        }
+
         // Handle main passport image upload
         if (empty($_FILES['passport_image']) || $_FILES['passport_image']['error'] !== UPLOAD_ERR_OK) {
             wp_send_json_error('Passport image is required');
@@ -260,6 +316,8 @@ class AgentDashboard {
             'visa_country' => sanitize_text_field($_POST['visa_country']),
             'visa_type' => sanitize_text_field($_POST['visa_type']),
             'submission_date' => sanitize_text_field($_POST['submission_date']),
+            'total_amount' => $total_amt['value'],
+            'deposit_amount' => $deposit_amt['value'],
             'created_at' => current_time('mysql')
         );
 
@@ -369,7 +427,7 @@ class AgentDashboard {
     public function get_customer_list_paginated($page = 1, $per_page = 10, $search = '') {
         if (!is_user_logged_in() || !current_user_can('agent')) {
             return array(
-                'html' => '<tr><td colspan="8">Access denied</td></tr>',
+                'html' => '<tr><td colspan="10">Access denied</td></tr>',
                 'has_more' => false,
                 'total' => 0
             );
@@ -387,7 +445,7 @@ class AgentDashboard {
 
         if (!$agent) {
             return array(
-                'html' => '<tr><td colspan="8">Agent not found</td></tr>',
+                'html' => '<tr><td colspan="10">Agent not found</td></tr>',
                 'has_more' => false,
                 'total' => 0
             );
@@ -400,9 +458,9 @@ class AgentDashboard {
         $search_params = array($agent->id);
 
         if (!empty($search)) {
-            $search_condition = " AND (customer_name LIKE %s OR customer_phone LIKE %s OR passport_number LIKE %s OR visa_country LIKE %s)";
+            $search_condition = " AND (customer_name LIKE %s OR customer_phone LIKE %s OR passport_number LIKE %s OR visa_country LIKE %s OR CAST(IFNULL(total_amount,0) AS CHAR) LIKE %s OR CAST(IFNULL(deposit_amount,0) AS CHAR) LIKE %s)";
             $search_term = '%' . $wpdb->esc_like($search) . '%';
-            $search_params = array_merge($search_params, array($search_term, $search_term, $search_term, $search_term));
+            $search_params = array_merge($search_params, array($search_term, $search_term, $search_term, $search_term, $search_term, $search_term));
         }
 
         // Get total count
@@ -422,7 +480,7 @@ class AgentDashboard {
 
         if (empty($customers)) {
             return array(
-                'html' => '<tr><td colspan="8">No customers found</td></tr>',
+                'html' => '<tr><td colspan="10">No customers found</td></tr>',
                 'has_more' => false,
                 'total' => 0
             );
@@ -465,12 +523,17 @@ class AgentDashboard {
             $actions_html .= '<button class="delete-customer-btn btn-delete" data-customer-id="' . $customer->id . '">Delete</button>';
             $actions_html .= '</div>';
 
+            $total_raw = isset($customer->total_amount) ? $customer->total_amount : null;
+            $deposit_raw = isset($customer->deposit_amount) ? $customer->deposit_amount : null;
+
             $output .= '<tr>
                 <td>' . esc_html($customer->customer_name) . '</td>
                 <td>' . esc_html($customer->customer_phone) . '</td>
                 <td>' . esc_html($customer->passport_number) . '</td>
                 <td>' . esc_html($customer->visa_country) . '</td>
                 <td>' . esc_html($customer->submission_date) . '</td>
+                <td>' . $this->format_amount_cell($total_raw) . '</td>
+                <td>' . $this->format_amount_cell($deposit_raw) . '</td>
                 <td><span class="' . $status_class . '">' . $status_display . '</span></td>
                 <td>' . $images_html . '</td>
                 <td>' . $actions_html . '</td>
@@ -627,12 +690,17 @@ class AgentDashboard {
             $actions_html .= '<button class="delete-customer-btn btn-delete" data-customer-id="' . $customer->id . '">Delete</button>';
             $actions_html .= '</div>';
 
+            $total_raw = isset($customer->total_amount) ? $customer->total_amount : null;
+            $deposit_raw = isset($customer->deposit_amount) ? $customer->deposit_amount : null;
+
             $html .= '<tr>
                 <td>' . esc_html($customer->customer_name) . '</td>
                 <td>' . esc_html($customer->customer_phone) . '</td>
                 <td>' . esc_html($customer->passport_number) . '</td>
                 <td>' . esc_html($customer->visa_type) . '</td>
                 <td>' . esc_html($customer->submission_date) . '</td>
+                <td>' . $this->format_amount_cell($total_raw) . '</td>
+                <td>' . $this->format_amount_cell($deposit_raw) . '</td>
                 <td><span class="' . $status_class . '">' . $status_display . '</span></td>
                 <td>' . $images_html . '</td>
                 <td>' . $actions_html . '</td>
@@ -787,13 +855,24 @@ class AgentDashboard {
             }
         }
 
+        $total_amt = $this->parse_amount_post_field('total_amount', 'all amount');
+        if (!$total_amt['ok']) {
+            wp_send_json_error($total_amt['error']);
+        }
+        $deposit_amt = $this->parse_amount_post_field('deposit_amount', 'deposit amount');
+        if (!$deposit_amt['ok']) {
+            wp_send_json_error($deposit_amt['error']);
+        }
+
         $customer_data = array(
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'customer_phone' => sanitize_text_field($_POST['customer_phone']),
             'passport_number' => sanitize_text_field($_POST['passport_number']),
             'visa_country' => sanitize_text_field($_POST['visa_country']),
             'visa_type' => sanitize_text_field($_POST['visa_type']),
-            'submission_date' => sanitize_text_field($_POST['submission_date'])
+            'submission_date' => sanitize_text_field($_POST['submission_date']),
+            'total_amount' => $total_amt['value'],
+            'deposit_amount' => $deposit_amt['value']
         );
 
         if (!empty($_FILES['passport_image']) && $_FILES['passport_image']['error'] === UPLOAD_ERR_OK) {
@@ -896,8 +975,8 @@ class AgentDashboard {
 
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
-        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.1', true);
-        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.2');
+        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.2', true);
+        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.3');
 
         if (class_exists('WooCommerce')) {
             wp_enqueue_script('prettyPhoto', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.min.js', array('jquery'), '1.0.0', true);

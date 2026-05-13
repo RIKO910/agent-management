@@ -38,6 +38,8 @@ class AgentDatabase {
         visa_country varchar(100) NOT NULL,
         visa_type varchar(50) NOT NULL,
         submission_date date NOT NULL,
+        total_amount decimal(14,2) DEFAULT NULL,
+        deposit_amount decimal(14,2) DEFAULT NULL,
         status varchar(20) DEFAULT 'pending',
         created_at datetime DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
@@ -58,5 +60,50 @@ class AgentDatabase {
         dbDelta($sql_agents);
         dbDelta($sql_customers);
         dbDelta($sql_customer_images);
+    }
+
+    /**
+     * Adds amount columns on existing installs where they are missing.
+     */
+    public static function maybe_upgrade_customer_amount_columns() {
+        global $wpdb;
+        $exists = self::customers_table_columns_map();
+        if ( isset( $exists['total_amount'] ) && isset( $exists['deposit_amount'] ) ) {
+            return;
+        }
+
+        $alter_parts = array();
+        if ( ! isset( $exists['total_amount'] ) ) {
+            $alter_parts[] = 'ADD COLUMN total_amount decimal(14,2) DEFAULT NULL';
+        }
+        if ( ! isset( $exists['deposit_amount'] ) ) {
+            $alter_parts[] = 'ADD COLUMN deposit_amount decimal(14,2) DEFAULT NULL';
+        }
+        if ( ! empty( $alter_parts ) ) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name is $wpdb->prefix + literal suffix.
+            $wpdb->query( 'ALTER TABLE `' . $wpdb->prefix . 'agent_customers` ' . implode( ', ', $alter_parts ) );
+        }
+    }
+
+    /**
+     * Column name => Row from SHOW FULL COLUMNS.
+     *
+     * @return array<string, array>
+     */
+    private static function customers_table_columns_map() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'agent_customers';
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name is $wpdb->prefix + literal suffix.
+        $cols    = $wpdb->get_results( 'SHOW COLUMNS FROM `' . $table . '`', ARRAY_A );
+        $map = array();
+        if ( empty( $cols ) ) {
+            return $map;
+        }
+        foreach ( $cols as $row ) {
+            if ( ! empty( $row['Field'] ) ) {
+                $map[ $row['Field'] ] = $row;
+            }
+        }
+        return $map;
     }
 }
