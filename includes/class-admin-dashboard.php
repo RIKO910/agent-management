@@ -494,6 +494,15 @@ class AdminDashboard {
 								<button type="button" class="amg-btn amg-btn-soft amg-edit-agent" data-agent-id="<?php echo (int) $agent->id; ?>">
 									<?php esc_html_e( 'Edit', 'agent-management' ); ?>
 								</button>
+								<?php
+								$agent_wp_user_id = isset( $agent->user_id ) ? (int) $agent->user_id : 0;
+								$wp_user_edit_url = $agent_wp_user_id ? get_edit_user_link( $agent_wp_user_id ) : '';
+								if ( $wp_user_edit_url ) :
+									?>
+									<a href="<?php echo esc_url( $wp_user_edit_url ); ?>" class="amg-btn amg-btn-soft">
+										<?php esc_html_e( 'Edit WP user', 'agent-management' ); ?>
+									</a>
+								<?php endif; ?>
 								<button type="button" class="amg-btn amg-btn-danger amg-delete-agent" data-agent-id="<?php echo (int) $agent->id; ?>" data-company="<?php echo esc_attr( $agent->company_name ); ?>">
 									<?php esc_html_e( 'Delete', 'agent-management' ); ?>
 								</button>
