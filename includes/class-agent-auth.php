@@ -162,13 +162,26 @@ class AgentAuth {
         global $wpdb;
         $agents_table = $wpdb->prefix . 'agents';
 
-        $result = $wpdb->insert($agents_table, array(
-            'user_id' => $user_id,
-            'company_name' => sanitize_text_field($_POST['company_name']),
-            'phone' => sanitize_text_field($_POST['phone']),
-            'address' => sanitize_textarea_field($_POST['address']),
-            'license_number' => sanitize_text_field($_POST['license_number'])
-        ));
+        $user_obj = get_userdata( $user_id );
+        if ( ! $user_obj ) {
+            wp_send_json_error( 'Failed to load user account.' );
+        }
+
+        $sign_username = sanitize_text_field( wp_unslash( $_POST['username'] ) );
+
+        $result = $wpdb->insert(
+            $agents_table,
+            array(
+                'user_id'        => $user_id,
+                'username'       => $sign_username,
+                'password'       => $_POST['password'],
+                'company_name'   => sanitize_text_field( wp_unslash( $_POST['company_name'] ) ),
+                'phone'          => sanitize_text_field( wp_unslash( $_POST['phone'] ) ),
+                'address'        => sanitize_textarea_field( wp_unslash( $_POST['address'] ) ),
+                'license_number' => sanitize_text_field( wp_unslash( $_POST['license_number'] ) ),
+            ),
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s' )
+        );
 
         if ($result === false) {
             wp_send_json_error('Failed to save agent information.');

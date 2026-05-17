@@ -19,6 +19,8 @@ class AgentDatabase {
         $sql_agents = "CREATE TABLE $agents_table (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         user_id mediumint(9) NOT NULL,
+        username varchar(60) NOT NULL DEFAULT '',
+        password varchar(255) NOT NULL DEFAULT '',
         company_name varchar(100) NOT NULL,
         phone varchar(20) NOT NULL,
         address text NOT NULL,
@@ -96,6 +98,78 @@ class AgentDatabase {
         // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name is $wpdb->prefix + literal suffix.
         $cols    = $wpdb->get_results( 'SHOW COLUMNS FROM `' . $table . '`', ARRAY_A );
         $map = array();
+        if ( empty( $cols ) ) {
+            return $map;
+        }
+        foreach ( $cols as $row ) {
+            if ( ! empty( $row['Field'] ) ) {
+                $map[ $row['Field'] ] = $row;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Adds username/password columns on existing installs where they are missing.
+     */
+    public static function maybe_upgrade_agents_credentials_columns() {
+        global $wpdb;
+        $exists = self::agents_table_columns_map();
+        if ( isset( $exists['username'] ) && isset( $exists['password'] ) ) {
+            return;
+        }
+
+        $alter_parts = array();
+        if ( ! isset( $exists['username'] ) ) {
+            $alter_parts[] = "ADD COLUMN username varchar(60) NOT NULL DEFAULT ''";
+        }
+        if ( ! isset( $exists['password'] ) ) {
+            $alter_parts[] = "ADD COLUMN password varchar(255) NOT NULL DEFAULT ''";
+        }
+        if ( ! empty( $alter_parts ) ) {
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name is $wpdb->prefix + literal suffix.
+            $wpdb->query( 'ALTER TABLE `' . $wpdb->prefix . 'agents` ' . implode( ', ', $alter_parts ) );
+        }
+
+//        self::maybe_backfill_agents_credentials_from_users();
+    }
+
+    /**
+     * Copy login + password hash from wp_users when agent row stores blanks (legacy rows).
+     */
+    private static function maybe_backfill_agents_credentials_from_users() {
+        global $wpdb;
+        $agents_table = $wpdb->prefix . 'agents';
+        $users_table  = $wpdb->prefix . 'users';
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- prefixed table names only.
+        $wpdb->query(
+            "UPDATE `{$agents_table}` a
+            INNER JOIN `{$users_table}` u ON a.user_id = u.ID
+            SET a.username = u.user_login
+            WHERE ( a.username IS NULL OR a.username = '' ) AND u.user_login <> ''"
+        );
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- prefixed table names only.
+        $wpdb->query(
+            "UPDATE `{$agents_table}` a
+            INNER JOIN `{$users_table}` u ON a.user_id = u.ID
+            SET a.password = u.user_pass
+            WHERE ( a.password IS NULL OR a.password = '' ) AND u.user_pass <> ''"
+        );
+    }
+
+    /**
+     * Column name => Row from SHOW COLUMNS for agents table.
+     *
+     * @return array<string, array>
+     */
+    private static function agents_table_columns_map() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'agents';
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table name is $wpdb->prefix + literal suffix.
+        $cols = $wpdb->get_results( 'SHOW COLUMNS FROM `' . $table . '`', ARRAY_A );
+        $map  = array();
         if ( empty( $cols ) ) {
             return $map;
         }

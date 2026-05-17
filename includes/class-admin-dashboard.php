@@ -407,7 +407,8 @@ class AdminDashboard {
 		$where_sql = '';
 		if ( $search !== '' ) {
 			$where_sql = $wpdb->prepare(
-				' WHERE ( a.company_name LIKE %s OR a.phone LIKE %s OR a.license_number LIKE %s OR a.address LIKE %s OR u.user_email LIKE %s OR u.user_login LIKE %s ) ',
+				' WHERE ( a.company_name LIKE %s OR a.phone LIKE %s OR a.license_number LIKE %s OR a.address LIKE %s OR a.username LIKE %s OR u.user_email LIKE %s OR u.user_login LIKE %s ) ',
+				$search_like,
 				$search_like,
 				$search_like,
 				$search_like,
@@ -439,7 +440,7 @@ class AdminDashboard {
 				<input type="hidden" name="page" value="agent-management" />
 				<label class="amg-sr-only" for="amg-agents-search"><?php esc_html_e( 'Search agents', 'agent-management' ); ?></label>
 				<div class="amg-search-input-wrap">
-					<input type="search" id="amg-agents-search" name="agents_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search agents: company, email, phone, license, address…', 'agent-management' ); ?>" autocomplete="off" />
+					<input type="search" id="amg-agents-search" name="agents_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search agents: company, username, email, phone, license, address…', 'agent-management' ); ?>" autocomplete="off" />
 				</div>
 				<button type="submit" class="amg-btn amg-btn-primary"><?php esc_html_e( 'Search', 'agent-management' ); ?></button>
 			</form>
@@ -450,6 +451,8 @@ class AdminDashboard {
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Company', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Username', 'agent-management' ); ?></th>
+					<th><?php esc_html_e( 'Password', 'agent-management' ); ?></th>
 					<th><?php esc_html_e( 'Email', 'agent-management' ); ?></th>
 					<th><?php esc_html_e( 'Phone', 'agent-management' ); ?></th>
 					<th><?php esc_html_e( 'License No.', 'agent-management' ); ?></th>
@@ -461,11 +464,21 @@ class AdminDashboard {
 			</thead>
 			<tbody>
 			<?php if ( empty( $agents ) ) : ?>
-				<tr><td colspan="8" style="text-align: center;"><?php esc_html_e( 'No agents found.', 'agent-management' ); ?></td></tr>
+				<tr><td colspan="10" style="text-align: center;"><?php esc_html_e( 'No agents found.', 'agent-management' ); ?></td></tr>
 			<?php else : ?>
 				<?php foreach ( $agents as $agent ) : ?>
 					<tr>
 						<td><?php echo esc_html( $agent->company_name ); ?></td>
+						<td><?php echo esc_html( isset( $agent->username ) && '' !== trim( (string) $agent->username ) ? $agent->username : $agent->user_login ); ?></td>
+						<td>
+							<?php
+							if ( $agent->password ) {
+                                echo esc_html( $agent->password );
+                            } else {
+								echo '<span aria-hidden="true">—</span>';
+							}
+							?>
+						</td>
 						<td><?php echo esc_html( $agent->user_email ); ?></td>
 						<td><?php echo esc_html( $agent->phone ); ?></td>
 						<td><?php echo esc_html( $agent->license_number ); ?></td>
@@ -798,7 +811,7 @@ class AdminDashboard {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT a.id, a.user_id, a.company_name, a.phone, a.address, a.license_number, a.status, a.created_at, u.user_email
+				"SELECT a.id, a.user_id, a.username, a.company_name, a.phone, a.address, a.license_number, a.status, a.created_at, u.user_email
 				FROM {$agents_table} a
 				LEFT JOIN {$users_table} u ON a.user_id = u.ID
 				WHERE a.id = %d",
