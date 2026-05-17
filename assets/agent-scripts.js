@@ -616,8 +616,6 @@ jQuery(document).ready(function ($) {
         form.find('select[name="visa_country"]').val(customer.visa_country);
         form.find('select[name="visa_type"]').val(customer.visa_type);
         form.find('input[name="submission_date"]').val(customer.submission_date);
-        form.find('input[name="total_amount"]').val(customer.total_amount != null && customer.total_amount !== '' ? customer.total_amount : '');
-        form.find('input[name="deposit_amount"]').val(customer.deposit_amount != null && customer.deposit_amount !== '' ? customer.deposit_amount : '');
 
         // Passport image
         $('input[name="passport_image"]').removeAttr('required');

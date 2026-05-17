@@ -865,3 +865,79 @@ body.amg-agent-management-page .wrap.amg-shell {
         max-width: none;
     }
 }
+
+/* List row actions: edit / delete + status */
+.amg-row-actions-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.amg-row-actions .amg-select {
+    max-width: 100%;
+}
+
+.amg-btn-danger {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+}
+
+.amg-btn-danger:hover {
+    background: #b91c1c;
+    color: #fff;
+}
+
+/* Admin edit modal forms */
+.amg-modal-overlay.amg-form-modal-overlay.amg-open {
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 16px;
+    overflow-y: auto;
+}
+
+.amg-form-modal.amg-modal {
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.amg-form-modal .amg-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 12px 0 4px;
+}
+
+.amg-form-modal .amg-input,
+.amg-form-modal .amg-textarea,
+.amg-form-modal .amg-input-select {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.amg-form-modal .amg-readonly-email {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.amg-form-modal .amg-form-actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 8px;
+}
+
+.amg-form-modal .amg-form-msg {
+    margin-top: 12px;
+    font-size: 0.9rem;
+}

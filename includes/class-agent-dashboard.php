@@ -24,7 +24,7 @@ class AgentDashboard {
     /**
      * Get list of all countries
      */
-    public function get_countries_list() {
+    public static function get_countries_list() {
         return array(
             'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia',
             'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium',
@@ -131,7 +131,7 @@ class AgentDashboard {
                             <label>Visa Country *</label>
                             <select name="visa_country" required>
                                 <option value="">Select Country</option>
-                                <?php foreach ($this->get_countries_list() as $country): ?>
+                                <?php foreach (self::get_countries_list() as $country): ?>
                                     <option value="<?php echo esc_attr($country); ?>"><?php echo esc_html($country); ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -152,17 +152,6 @@ class AgentDashboard {
                         <div class="form-group">
                             <label>Submission Date *</label>
                             <input type="date" name="submission_date" required>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Total amount</label>
-                            <input type="number" name="total_amount" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
-                        </div>
-                        <div class="form-group">
-                            <label>Deposit amount</label>
-                            <input type="number" name="deposit_amount" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
                         </div>
                     </div>
 
@@ -279,15 +268,7 @@ class AgentDashboard {
             }
         }
 
-        $total_amt = $this->parse_amount_post_field('total_amount', 'total amount');
-        if (!$total_amt['ok']) {
-            wp_send_json_error($total_amt['error']);
-        }
-        $deposit_amt = $this->parse_amount_post_field('deposit_amount', 'deposit amount');
-        if (!$deposit_amt['ok']) {
-            wp_send_json_error($deposit_amt['error']);
-        }
-
+        // Total and deposit amounts are admin-only; agents cannot set them.
         // Handle main passport image upload
         if (empty($_FILES['passport_image']) || $_FILES['passport_image']['error'] !== UPLOAD_ERR_OK) {
             wp_send_json_error('Passport image is required');
@@ -316,8 +297,8 @@ class AgentDashboard {
             'visa_country' => sanitize_text_field($_POST['visa_country']),
             'visa_type' => sanitize_text_field($_POST['visa_type']),
             'submission_date' => sanitize_text_field($_POST['submission_date']),
-            'total_amount' => $total_amt['value'],
-            'deposit_amount' => $deposit_amt['value'],
+            'total_amount' => null,
+            'deposit_amount' => null,
             'created_at' => current_time('mysql')
         );
 
@@ -855,15 +836,7 @@ class AgentDashboard {
             }
         }
 
-        $total_amt = $this->parse_amount_post_field('total_amount', 'total amount');
-        if (!$total_amt['ok']) {
-            wp_send_json_error($total_amt['error']);
-        }
-        $deposit_amt = $this->parse_amount_post_field('deposit_amount', 'deposit amount');
-        if (!$deposit_amt['ok']) {
-            wp_send_json_error($deposit_amt['error']);
-        }
-
+        // Preserve amounts set by admin; agents cannot change them via this endpoint.
         $customer_data = array(
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'customer_phone' => sanitize_text_field($_POST['customer_phone']),
@@ -871,8 +844,6 @@ class AgentDashboard {
             'visa_country' => sanitize_text_field($_POST['visa_country']),
             'visa_type' => sanitize_text_field($_POST['visa_type']),
             'submission_date' => sanitize_text_field($_POST['submission_date']),
-            'total_amount' => $total_amt['value'],
-            'deposit_amount' => $deposit_amt['value']
         );
 
         if (!empty($_FILES['passport_image']) && $_FILES['passport_image']['error'] === UPLOAD_ERR_OK) {
@@ -975,8 +946,8 @@ class AgentDashboard {
 
     public function enqueue_scripts() {
         wp_enqueue_script('jquery');
-        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.3', true);
-        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.4');
+        wp_enqueue_script('agent-scripts', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-scripts.js', array('jquery'), '1.4', true);
+        wp_enqueue_style('agent-styles', AGENT_MANAGEMENT_PLUGIN_URL . 'assets/agent-styles.css', array(), '1.5');
 
         if (class_exists('WooCommerce')) {
             wp_enqueue_script('prettyPhoto', WC()->plugin_url() . '/assets/js/prettyPhoto/jquery.prettyPhoto.min.js', array('jquery'), '1.0.0', true);

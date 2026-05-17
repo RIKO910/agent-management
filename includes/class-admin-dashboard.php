@@ -20,6 +20,42 @@ class AdminDashboard {
 		return esc_html( number_format( (float) $value, 2, '.', ',' ) );
 	}
 
+	/**
+	 * Parse optional monetary field from POST (admin customer edit).
+	 *
+	 * @param string $key   POST key.
+	 * @param string $label Human label for errors.
+	 * @return array{ok:bool, value:?float, error?:string}
+	 */
+	private function parse_amount_post_field( $key, $label ) {
+		if ( ! isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			return array( 'ok' => true, 'value' => null );
+		}
+		$raw = trim( (string) wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( '' === $raw ) {
+			return array( 'ok' => true, 'value' => null );
+		}
+		$clean = preg_replace( '/[^0-9.\-]/', '', $raw );
+		if ( '' === $clean || ! is_numeric( $clean ) ) {
+			return array( 'ok' => false, 'error' => sprintf( 'Invalid amount for %s', $label ) );
+		}
+
+		return array( 'ok' => true, 'value' => round( (float) $clean, 2 ) );
+	}
+
+	/**
+	 * @return bool
+	 */
+	private function admin_ajax_verify() {
+		check_ajax_referer( 'agent_management_admin', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Access denied.', 'agent-management' ) ), 403 );
+		}
+
+		return true;
+	}
+
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
@@ -27,6 +63,12 @@ class AdminDashboard {
 		add_action( 'wp_ajax_update_agent_status', array( $this, 'update_agent_status' ) );
 		add_action( 'wp_ajax_update_customer_status', array( $this, 'update_customer_status' ) );
 		add_action( 'wp_ajax_agent_management_get_agent_customers', array( $this, 'ajax_get_agent_customers' ) );
+		add_action( 'wp_ajax_agent_management_admin_get_agent', array( $this, 'ajax_admin_get_agent' ) );
+		add_action( 'wp_ajax_agent_management_admin_save_agent', array( $this, 'ajax_admin_save_agent' ) );
+		add_action( 'wp_ajax_agent_management_admin_delete_agent', array( $this, 'ajax_admin_delete_agent' ) );
+		add_action( 'wp_ajax_agent_management_admin_get_customer', array( $this, 'ajax_admin_get_customer' ) );
+		add_action( 'wp_ajax_agent_management_admin_save_customer', array( $this, 'ajax_admin_save_customer' ) );
+		add_action( 'wp_ajax_agent_management_admin_delete_customer', array( $this, 'ajax_admin_delete_customer' ) );
 	}
 
 	/**
@@ -41,14 +83,14 @@ class AdminDashboard {
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.css',
 			array(),
-			'1.5'
+			'1.6'
 		);
 
 		wp_enqueue_script(
 			'agent-management-admin',
 			AGENT_MANAGEMENT_PLUGIN_URL . 'assets/admin-dashboard.js',
 			array( 'jquery' ),
-			'1.5',
+			'1.6',
 			true
 		);
 
@@ -56,8 +98,16 @@ class AdminDashboard {
 			'agent-management-admin',
 			'amgAdmin',
 			array(
-				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'agent_management_admin' ),
+				'ajaxurl'  => admin_url( 'admin-ajax.php' ),
+				'nonce'    => wp_create_nonce( 'agent_management_admin' ),
+				'countries'=> AgentDashboard::get_countries_list(),
+				'i18n'     => array(
+					'confirmDeleteAgent'   => __( 'Delete this agent, all of their customers, and the WordPress user account? This cannot be undone.', 'agent-management' ),
+					'confirmDeleteCustomer'=> __( 'Delete this customer and their stored images? This cannot be undone.', 'agent-management' ),
+					'saved'                => __( 'Saved.', 'agent-management' ),
+					'saveFailed'           => __( 'Could not save. Please try again.', 'agent-management' ),
+					'loadFailed'           => __( 'Could not load data.', 'agent-management' ),
+				),
 			)
 		);
 	}
@@ -426,7 +476,15 @@ class AdminDashboard {
 								<?php esc_html_e( 'View customers', 'agent-management' ); ?>
 							</button>
 						</td>
-						<td>
+						<td class="amg-row-actions">
+							<div class="amg-row-actions-btns">
+								<button type="button" class="amg-btn amg-btn-soft amg-edit-agent" data-agent-id="<?php echo (int) $agent->id; ?>">
+									<?php esc_html_e( 'Edit', 'agent-management' ); ?>
+								</button>
+								<button type="button" class="amg-btn amg-btn-danger amg-delete-agent" data-agent-id="<?php echo (int) $agent->id; ?>" data-company="<?php echo esc_attr( $agent->company_name ); ?>">
+									<?php esc_html_e( 'Delete', 'agent-management' ); ?>
+								</button>
+							</div>
 							<select class="amg-select" onchange="updateAgentStatus(<?php echo (int) $agent->id; ?>, this.value)">
 								<option value="pending" <?php selected( $agent->status, 'pending' ); ?>><?php esc_html_e( 'Pending', 'agent-management' ); ?></option>
 								<option value="approved" <?php selected( $agent->status, 'approved' ); ?>><?php esc_html_e( 'Approve', 'agent-management' ); ?></option>
@@ -559,7 +617,15 @@ class AdminDashboard {
 						<td><?php echo $this->format_customer_amount_cell( isset( $customer->total_amount ) ? $customer->total_amount : null ); ?></td>
 						<td><?php echo $this->format_customer_amount_cell( isset( $customer->deposit_amount ) ? $customer->deposit_amount : null ); ?></td>
 						<td><span class="status-<?php echo esc_attr( $customer->status ); ?>"><?php echo esc_html( $customer->status ); ?></span></td>
-						<td>
+						<td class="amg-row-actions">
+							<div class="amg-row-actions-btns">
+								<button type="button" class="amg-btn amg-btn-soft amg-edit-customer" data-customer-id="<?php echo (int) $customer->id; ?>">
+									<?php esc_html_e( 'Edit', 'agent-management' ); ?>
+								</button>
+								<button type="button" class="amg-btn amg-btn-danger amg-delete-customer" data-customer-id="<?php echo (int) $customer->id; ?>" data-customer-name="<?php echo esc_attr( $customer->customer_name ); ?>">
+									<?php esc_html_e( 'Delete', 'agent-management' ); ?>
+								</button>
+							</div>
 							<select class="amg-select" onchange="updateCustomerStatus(<?php echo (int) $customer->id; ?>, this.value)">
 								<option value="pending" <?php selected( $customer->status, 'pending' ); ?>><?php esc_html_e( 'Pending', 'agent-management' ); ?></option>
 								<option value="approved" <?php selected( $customer->status, 'approved' ); ?>><?php esc_html_e( 'Approve', 'agent-management' ); ?></option>
@@ -713,5 +779,273 @@ class AdminDashboard {
 		);
 
 		wp_send_json_success();
+	}
+
+	/**
+	 * AJAX: agent row for admin edit form.
+	 */
+	public function ajax_admin_get_agent() {
+		$this->admin_ajax_verify();
+
+		$agent_id = isset( $_POST['agent_id'] ) ? intval( $_POST['agent_id'] ) : 0;
+		if ( $agent_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid agent.', 'agent-management' ) ) );
+		}
+
+		global $wpdb;
+		$agents_table = $wpdb->prefix . 'agents';
+		$users_table  = $wpdb->prefix . 'users';
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT a.id, a.user_id, a.company_name, a.phone, a.address, a.license_number, a.status, a.created_at, u.user_email
+				FROM {$agents_table} a
+				LEFT JOIN {$users_table} u ON a.user_id = u.ID
+				WHERE a.id = %d",
+				$agent_id
+			)
+		);
+
+		if ( ! $row ) {
+			wp_send_json_error( array( 'message' => __( 'Agent not found.', 'agent-management' ) ) );
+		}
+
+		wp_send_json_success( $row );
+	}
+
+	/**
+	 * AJAX: save agent profile fields + status from admin.
+	 */
+	public function ajax_admin_save_agent() {
+		$this->admin_ajax_verify();
+
+		$agent_id = isset( $_POST['agent_id'] ) ? intval( $_POST['agent_id'] ) : 0;
+		if ( $agent_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid agent.', 'agent-management' ) ) );
+		}
+
+		$company = isset( $_POST['company_name'] ) ? sanitize_text_field( wp_unslash( $_POST['company_name'] ) ) : '';
+		$phone   = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+		$address = isset( $_POST['address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['address'] ) ) : '';
+		$license = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
+		$status  = isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : 'pending';
+
+		if ( '' === $company || '' === $phone || '' === $address || '' === $license ) {
+			wp_send_json_error( array( 'message' => __( 'Please fill all required fields.', 'agent-management' ) ) );
+		}
+
+		$allowed_status = array( 'pending', 'approved', 'rejected' );
+		if ( ! in_array( $status, $allowed_status, true ) ) {
+			$status = 'pending';
+		}
+
+		global $wpdb;
+		$agents_table = $wpdb->prefix . 'agents';
+
+		$updated = $wpdb->update(
+			$agents_table,
+			array(
+				'company_name'   => $company,
+				'phone'          => $phone,
+				'address'        => $address,
+				'license_number' => $license,
+				'status'         => $status,
+			),
+			array( 'id' => $agent_id )
+		);
+
+		if ( false === $updated ) {
+			wp_send_json_error( array( 'message' => __( 'Could not save agent.', 'agent-management' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Agent saved.', 'agent-management' ) ) );
+	}
+
+	/**
+	 * AJAX: delete agent, their customers, image rows, and WP user.
+	 */
+	public function ajax_admin_delete_agent() {
+		$this->admin_ajax_verify();
+
+		$agent_id = isset( $_POST['agent_id'] ) ? intval( $_POST['agent_id'] ) : 0;
+		if ( $agent_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid agent.', 'agent-management' ) ) );
+		}
+
+		global $wpdb;
+		$agents_table    = $wpdb->prefix . 'agents';
+		$customers_table = $wpdb->prefix . 'agent_customers';
+		$images_table    = $wpdb->prefix . 'agent_customer_images';
+
+		$agent = $wpdb->get_row( $wpdb->prepare( "SELECT id, user_id FROM {$agents_table} WHERE id = %d", $agent_id ) );
+		if ( ! $agent ) {
+			wp_send_json_error( array( 'message' => __( 'Agent not found.', 'agent-management' ) ) );
+		}
+
+		$user_id = (int) $agent->user_id;
+		if ( $user_id === get_current_user_id() ) {
+			wp_send_json_error( array( 'message' => __( 'You cannot delete your own user account from here.', 'agent-management' ) ) );
+		}
+
+		$customer_ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$customers_table} WHERE agent_id = %d", $agent_id ) );
+		foreach ( $customer_ids as $cid ) {
+			$wpdb->delete( $images_table, array( 'customer_id' => (int) $cid ), array( '%d' ) );
+		}
+		$wpdb->delete( $customers_table, array( 'agent_id' => $agent_id ), array( '%d' ) );
+		$wpdb->delete( $agents_table, array( 'id' => $agent_id ), array( '%d' ) );
+
+		if ( $user_id > 0 ) {
+			require_once ABSPATH . 'wp-admin/includes/user.php';
+			if ( is_multisite() ) {
+				require_once ABSPATH . 'wp-admin/includes/ms.php';
+			}
+			if ( is_multisite() && function_exists( 'wpmu_delete_user' ) ) {
+				wpmu_delete_user( $user_id );
+			} else {
+				wp_delete_user( $user_id );
+			}
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Agent deleted.', 'agent-management' ) ) );
+	}
+
+	/**
+	 * AJAX: customer row for admin edit (includes amounts).
+	 */
+	public function ajax_admin_get_customer() {
+		$this->admin_ajax_verify();
+
+		$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
+		if ( $customer_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid customer.', 'agent-management' ) ) );
+		}
+
+		global $wpdb;
+		$customers_table = $wpdb->prefix . 'agent_customers';
+		$agents_table    = $wpdb->prefix . 'agents';
+		$users_table     = $wpdb->prefix . 'users';
+		$images_table    = $wpdb->prefix . 'agent_customer_images';
+
+		$customer = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT c.*, a.company_name, u.user_email AS agent_email
+				FROM {$customers_table} c
+				LEFT JOIN {$agents_table} a ON c.agent_id = a.id
+				LEFT JOIN {$users_table} u ON a.user_id = u.ID
+				WHERE c.id = %d",
+				$customer_id
+			)
+		);
+
+		if ( ! $customer ) {
+			wp_send_json_error( array( 'message' => __( 'Customer not found.', 'agent-management' ) ) );
+		}
+
+		$customer->additional_images = $wpdb->get_results(
+			$wpdb->prepare( "SELECT id, image_url FROM {$images_table} WHERE customer_id = %d ORDER BY id ASC", $customer_id )
+		);
+
+		wp_send_json_success( $customer );
+	}
+
+	/**
+	 * AJAX: save customer from admin (including total and deposit amounts).
+	 */
+	public function ajax_admin_save_customer() {
+		$this->admin_ajax_verify();
+
+		$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
+		if ( $customer_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid customer.', 'agent-management' ) ) );
+		}
+
+		$required = array( 'customer_name', 'customer_phone', 'passport_number', 'visa_country', 'visa_type', 'submission_date' );
+		foreach ( $required as $key ) {
+			if ( empty( $_POST[ $key ] ) ) {
+				wp_send_json_error( array( 'message' => __( 'Please fill all required fields.', 'agent-management' ) ) );
+			}
+		}
+
+		$total_amt = $this->parse_amount_post_field( 'total_amount', 'total amount' );
+		if ( ! $total_amt['ok'] ) {
+			wp_send_json_error( array( 'message' => $total_amt['error'] ) );
+		}
+		$deposit_amt = $this->parse_amount_post_field( 'deposit_amount', 'deposit amount' );
+		if ( ! $deposit_amt['ok'] ) {
+			wp_send_json_error( array( 'message' => $deposit_amt['error'] ) );
+		}
+
+		$status = isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : 'pending';
+		$allowed_status = array( 'pending', 'approved', 'rejected' );
+		if ( ! in_array( $status, $allowed_status, true ) ) {
+			$status = 'pending';
+		}
+
+		global $wpdb;
+		$customers_table = $wpdb->prefix . 'agent_customers';
+
+		$visa_type = sanitize_text_field( wp_unslash( $_POST['visa_type'] ) );
+		$visa_allowed = array( 'tourist', 'student', 'work', 'business' );
+		if ( ! in_array( $visa_type, $visa_allowed, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid visa type.', 'agent-management' ) ) );
+		}
+
+		$visa_country = sanitize_text_field( wp_unslash( $_POST['visa_country'] ) );
+		$countries    = AgentDashboard::get_countries_list();
+		$existing_row = $wpdb->get_row( $wpdb->prepare( "SELECT visa_country FROM {$customers_table} WHERE id = %d", $customer_id ) );
+		$legacy_ok    = $existing_row && $visa_country === $existing_row->visa_country;
+		if ( ! in_array( $visa_country, $countries, true ) && ! $legacy_ok ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid visa country.', 'agent-management' ) ) );
+		}
+
+		$data = array(
+			'customer_name'    => sanitize_text_field( wp_unslash( $_POST['customer_name'] ) ),
+			'customer_phone'   => sanitize_text_field( wp_unslash( $_POST['customer_phone'] ) ),
+			'passport_number'  => sanitize_text_field( wp_unslash( $_POST['passport_number'] ) ),
+			'visa_country'     => $visa_country,
+			'visa_type'        => $visa_type,
+			'submission_date'  => sanitize_text_field( wp_unslash( $_POST['submission_date'] ) ),
+			'total_amount'     => $total_amt['value'],
+			'deposit_amount'   => $deposit_amt['value'],
+			'status'           => $status,
+		);
+
+		$updated = $wpdb->update(
+			$customers_table,
+			$data,
+			array( 'id' => $customer_id )
+		);
+
+		if ( false === $updated ) {
+			wp_send_json_error( array( 'message' => __( 'Could not save customer.', 'agent-management' ) ) );
+		}
+
+		wp_send_json_success( array( 'message' => __( 'Customer saved.', 'agent-management' ) ) );
+	}
+
+	/**
+	 * AJAX: delete a single customer (admin).
+	 */
+	public function ajax_admin_delete_customer() {
+		$this->admin_ajax_verify();
+
+		$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
+		if ( $customer_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid customer.', 'agent-management' ) ) );
+		}
+
+		global $wpdb;
+		$customers_table = $wpdb->prefix . 'agent_customers';
+		$images_table    = $wpdb->prefix . 'agent_customer_images';
+
+		$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$customers_table} WHERE id = %d", $customer_id ) );
+		if ( ! $exists ) {
+			wp_send_json_error( array( 'message' => __( 'Customer not found.', 'agent-management' ) ) );
+		}
+
+		$wpdb->delete( $images_table, array( 'customer_id' => $customer_id ), array( '%d' ) );
+		$wpdb->delete( $customers_table, array( 'id' => $customer_id ), array( '%d' ) );
+
+		wp_send_json_success( array( 'message' => __( 'Customer deleted.', 'agent-management' ) ) );
 	}
 }
